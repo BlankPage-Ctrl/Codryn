@@ -1,0 +1,1 @@
+ALTER TABLE `chats` ADD `thinking_mode` text DEFAULT 'default' NOT NULL;

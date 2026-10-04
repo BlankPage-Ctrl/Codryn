@@ -1,0 +1,99 @@
+{
+  "query": "refine superRefine",
+  "hits": [
+    {
+      "id": "typescript:packages/zod/src/v4/classic/tests/partial.test.ts:const:arrow.refinedSchema:3",
+      "name": "refinedSchema",
+      "qualifiedName": "arrow.refinedSchema",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/classic/tests/partial.test.ts",
+      "lineRange": {
+        "start": 401,
+        "end": 409
+      },
+      "dialect": "typescript",
+      "signature": "const refinedSchema = baseSchema.superRefine((val, ctx) =\u003e { if (val.name === \"admin\") { ctx ...",
+      "doc": "",
+      "vessel": {
+        "kind": "function",
+        "id": "",
+        "name": "arrow"
+      },
+      "score": -12.785294171413767,
+      "mode": "fts",
+      "rank": 0
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/classic/tests/partial.test.ts:const:arrow.refinedSchema:1",
+      "name": "refinedSchema",
+      "qualifiedName": "arrow.refinedSchema",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/classic/tests/partial.test.ts",
+      "lineRange": {
+        "start": 369,
+        "end": 377
+      },
+      "dialect": "typescript",
+      "signature": "const refinedSchema = baseSchema.superRefine((val, ctx) =\u003e { if (val.items.length === 0) { c ...",
+      "doc": "",
+      "vessel": {
+        "kind": "function",
+        "id": "",
+        "name": "arrow"
+      },
+      "score": -12.76774344792534,
+      "mode": "fts",
+      "rank": 1
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/classic/tests/pickomit.test.ts:const:arrow.refinedSchema:1",
+      "name": "refinedSchema",
+      "qualifiedName": "arrow.refinedSchema",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/classic/tests/pickomit.test.ts",
+      "lineRange": {
+        "start": 145,
+        "end": 153
+      },
+      "dialect": "typescript",
+      "signature": "const refinedSchema = baseSchema.superRefine((val, ctx) =\u003e { if (val.items.length === 0) { c ...",
+      "doc": "",
+      "vessel": {
+        "kind": "function",
+        "id": "",
+        "name": "arrow"
+      },
+      "score": -12.76774344792534,
+      "mode": "fts",
+      "rank": 2
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/classic/tests/pickomit.test.ts:const:arrow.refinedSchema:2",
+      "name": "refinedSchema",
+      "qualifiedName": "arrow.refinedSchema",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/classic/tests/pickomit.test.ts",
+      "lineRange": {
+        "start": 167,
+        "end": 175
+      },
+      "dialect": "typescript",
+      "signature": "const refinedSchema = baseSchema.superRefine((val, ctx) =\u003e { if (val.items.length === 0) { c ...",
+      "doc": "",
+      "vessel": {
+        "kind": "function",
+        "id": "",
+        "name": "arrow"
+      },
+      "score": -12.76774344792534,
+      "mode": "fts",
+      "rank": 3
+    }
+  ],
+  "stats": {
+    "filesScanned": 505,
+    "functionsIndexed": 20424,
+    "nodesReturned": 4,
+    "edgesReturned": 0
+  }
+}

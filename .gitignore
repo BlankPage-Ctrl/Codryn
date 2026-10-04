@@ -1,0 +1,7 @@
+dist/
+.attachments/
+coverage/
+srcinsight/srcinsight*
+config.toml
+node_modules/
+data.db

@@ -1,0 +1,83 @@
+{
+    "version": "7",
+    "dialect": "sqlite",
+    "entries": [
+        {
+            "idx": 0,
+            "version": "6",
+            "when": 1784346648990,
+            "tag": "0000_natural_lockheed",
+            "breakpoints": true
+        },
+        {
+            "idx": 1,
+            "version": "6",
+            "when": 1786013625728,
+            "tag": "0001_wet_raider",
+            "breakpoints": true
+        },
+        {
+            "idx": 2,
+            "version": "6",
+            "when": 1786517164240,
+            "tag": "0002_yummy_virginia_dare",
+            "breakpoints": true
+        },
+        {
+            "idx": 3,
+            "version": "6",
+            "when": 1787133052126,
+            "tag": "0003_ordinary_silver_fox",
+            "breakpoints": true
+        },
+        {
+            "idx": 4,
+            "version": "6",
+            "when": 1787388310453,
+            "tag": "0004_magenta_metal_master",
+            "breakpoints": true
+        },
+        {
+            "idx": 5,
+            "version": "6",
+            "when": 1787744596057,
+            "tag": "0005_hitl_execution_id_nullable",
+            "breakpoints": true
+        },
+        {
+            "idx": 6,
+            "version": "6",
+            "when": 1788107761669,
+            "tag": "0006_add_workspace_to_notes",
+            "breakpoints": true
+        },
+        {
+            "idx": 7,
+            "version": "6",
+            "when": 1788750037663,
+            "tag": "0007_add_mode_to_chats",
+            "breakpoints": true
+        },
+        {
+            "idx": 8,
+            "version": "6",
+            "when": 1788840359391,
+            "tag": "0008_aromatic_bruce_banner",
+            "breakpoints": true
+        },
+        {
+            "idx": 9,
+            "version": "6",
+            "when": 1790170303596,
+            "tag": "0009_fm_file_history",
+            "breakpoints": true
+        },
+        {
+            "idx": 10,
+            "version": "6",
+            "when": 1790231456593,
+            "tag": "0010_add_attachments",
+            "breakpoints": true
+        }
+    ]
+}

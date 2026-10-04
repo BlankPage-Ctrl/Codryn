@@ -1,0 +1,1 @@
+ALTER TABLE `message_parts` ADD `is_system` integer DEFAULT false NOT NULL;

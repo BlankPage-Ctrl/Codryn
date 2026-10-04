@@ -1,0 +1,179 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SrcInsight SearchResult",
+  "description": "Response of the SrcInsight search endpoint: flat list with ranking signal (score/mode/rank) plus context (signature/doc/vessel). No graph expansion. Use hits[].id to fetch a full Graph via the graph endpoint.",
+  "type": "object",
+  "required": [
+    "query",
+    "hits",
+    "stats"
+  ],
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "The normalized free-text query (mirrors SearchOptions.query)."
+    },
+    "hits": {
+      "type": "array",
+      "description": "Hits with ranking signal — no calls/calledBy. Fetch each body via graph {id}. FTS scores are raw bm25 (negative, smaller = more relevant); non-FTS scores are 0.",
+      "items": {
+        "$ref": "#/definitions/searchHit"
+      }
+    },
+    "stats": {
+      "$ref": "#/definitions/stats"
+    }
+  },
+  "definitions": {
+    "searchHit": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "qualifiedName",
+        "kind",
+        "filePath",
+        "lineRange",
+        "dialect",
+        "signature",
+        "doc",
+        "score",
+        "mode",
+        "rank"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable EntryID: <lang>:<relPath>:<kind>:<qualifiedName>:<ordinal>"
+        },
+        "name": {
+          "type": "string"
+        },
+        "qualifiedName": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "function",
+            "method",
+            "arrow",
+            "constructor",
+            "generator",
+            "class",
+            "interface",
+            "type",
+            "enum",
+            "module",
+            "const",
+            "unresolved",
+            "async-function",
+            "async-arrow",
+            "async-method"
+          ]
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "lineRange": {
+          "$ref": "#/definitions/range"
+        },
+        "dialect": {
+          "type": "string",
+          "enum": ["typescript", "python", "go"],
+          "description": "Source language of the indexed file."
+        },
+        "signature": {
+          "type": "string"
+        },
+        "doc": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Entry-level convention marks (NestJS: controller/injectable/module, route:Get/route:Post, resolver, query/mutation/subscription/resolve-field). Omitted when empty."
+        },
+        "vessel": {
+          "$ref": "#/definitions/container"
+        },
+        "score": {
+          "type": "number",
+          "description": "Raw FTS5 bm25 for fts hits (negative, smaller = more relevant, weighted name=20 qualified=10 doc=3); 0 for exact/prefix/substring."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["exact", "prefix", "fts", "substring"],
+          "description": "Winning primitive for this hit."
+        },
+        "rank": {
+          "type": "integer",
+          "description": "0-based position inside the primitive page before union/filter."
+        }
+      }
+    },
+    "container": {
+      "type": "object",
+      "required": ["kind", "id", "name"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["file", "class", "module", "namespace", "function"]},
+        "id": {"type": "string"},
+        "name": {"type": "string"}
+      }
+    },
+    "stats": {
+      "type": "object",
+      "required": [
+        "filesScanned",
+        "functionsIndexed",
+        "nodesReturned",
+        "edgesReturned"
+      ],
+      "properties": {
+        "filesScanned": {
+          "type": "integer"
+        },
+        "functionsIndexed": {
+          "type": "integer"
+        },
+        "nodesReturned": {
+          "type": "integer"
+        },
+        "edgesReturned": {
+          "type": "integer",
+          "description": "Always emitted on the wire (no omitempty); 0 for search."
+        },
+        "internalCalls": {
+          "type": "integer",
+          "description": "Omitted when zero."
+        },
+        "externalCalls": {
+          "type": "integer",
+          "description": "Omitted when zero."
+        },
+        "unresolvedCalls": {
+          "type": "integer",
+          "description": "Omitted when zero."
+        }
+      }
+    },
+    "range": {
+      "type": "object",
+      "description": "1-indexed inclusive line range.",
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

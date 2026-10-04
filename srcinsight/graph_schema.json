@@ -1,0 +1,274 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SrcInsight Graph",
+  "description": "Response of the SrcInsight graph endpoint: single-root exact EntryID. nodes=[root] only (Function with signature, calls, calledBy, extends, implements, paramTypes, returnTypes, uses from direct 1-hop edges). edges are direct root <-> neighbor. No transitive BFS.",
+  "type": "object",
+  "required": [
+    "nodes",
+    "edges"
+  ],
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "description": "Single-root: [root] only. Root is Function with calls/calledBy/extends/implements/paramTypes/returnTypes/uses populated from direct 1-hop edges.",
+      "items": {
+        "$ref": "#/definitions/function"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "description": "Direct 1-hop edges root <-> neighbor (calls, extends, implements, param, return, uses). No transitive BFS.",
+      "items": {
+        "$ref": "#/definitions/edge"
+      }
+    }
+  },
+  "definitions": {
+    "functionRef": {
+      "type": "object",
+      "description": "A lightweight edge reference (no signature or body).",
+      "required": [
+        "id",
+        "name",
+        "filePath",
+        "lineRange"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable EntryID; empty for unresolved calls."
+        },
+        "name": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "lineRange": {
+          "$ref": "#/definitions/range"
+        },
+        "scope": {
+          "type": "string",
+          "description": "Classifies the callee. Values: 'internal:<file>' (resolves to an indexed project function), 'internal' (unresolved but imported from a project module), 'external:<module>' (external dependency), 'external:runtime' (language/global builtin), or 'unresolved' (cannot tell).",
+          "examples": [
+            "internal:src/auth/validator.ts",
+            "internal",
+            "external:express",
+            "external:runtime",
+            "unresolved"
+          ]
+        },
+        "siteRange": {
+          "$ref": "#/definitions/range",
+          "description": "1-indexed line range inside the caller where this reference occurs (the call site). Zero value {\"start\":0,\"end\":0} means unknown; always emitted on the wire because Go struct-value omitempty never omits it."
+        },
+        "cond": {
+          "type": "string",
+          "description": "Branch condition guarding this call site. Omitted when unconditional or unknown."
+        }
+      }
+    },
+    "function": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "filePath",
+        "lineRange",
+        "kind",
+        "file",
+        "signature",
+        "calls",
+        "calledBy"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "lineRange": {
+          "$ref": "#/definitions/range"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "function",
+            "method",
+            "arrow",
+            "constructor",
+            "generator",
+            "class",
+            "interface",
+            "type",
+            "enum",
+            "module",
+            "const",
+            "unresolved",
+            "async-function",
+            "async-arrow",
+            "async-method"
+          ]
+        },
+        "file": {
+          "$ref": "#/definitions/container",
+          "description": "Enclosing file container; always present."
+        },
+        "container": {
+          "$ref": "#/definitions/container",
+          "description": "Nearest enclosing class/module container, if any."
+        },
+        "signature": {
+          "type": "string",
+          "description": "One-line function head (or type declaration head or const declaration); never includes the body."
+        },
+        "doc": {
+          "type": "string",
+          "description": "Preceding contiguous comment block, if any."
+        },
+        "testTitle": {
+          "type": "string",
+          "description": "Test-case title when an anonymous def is a test()/it() callback. Omitted when empty."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Entry-level convention marks (NestJS: controller/injectable/module, route:Get/route:Post, resolver, query/mutation/subscription/resolve-field). Omitted when empty."
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "calledBy": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "extends": {
+          "type": "array",
+          "description": "Type heritage targets for class/interface nodes (edge kind 'extends'). Empty for function nodes.",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "implements": {
+          "type": "array",
+          "description": "Interfaces implemented by class/abstract-class nodes (edge kind 'implements'). Empty for function nodes.",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "paramTypes": {
+          "type": "array",
+          "description": "Typed params unwrapped to base type refs (Pick/Omit/Promise etc collapsed to inner type). Edge kind 'param'.",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "returnTypes": {
+          "type": "array",
+          "description": "Typed returns unwrapped to base type refs. Edge kind 'return'.",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "uses": {
+          "type": "array",
+          "description": "Const value dependencies unwrapped to identifier refs. Edge kind 'uses'.",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        }
+      }
+    },
+    "container": {
+      "type": "object",
+      "description": "A structural container (file, class, module, namespace or function) a definition lives in.",
+      "required": [
+        "kind",
+        "id",
+        "name"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "file",
+            "class",
+            "module",
+            "namespace",
+            "function"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "description": "Stable container ID. For files: 'file:<relPath>'. For classes: the class node's EntryID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Container name, e.g. basename for a file or the class name."
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "kind"
+      ],
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "calls",
+            "extends",
+            "implements",
+            "param",
+            "return",
+            "uses"
+          ]
+        },
+        "siteRange": {
+          "$ref": "#/definitions/range",
+          "description": "Call-site line range inside the From node. Zero value {\"start\":0,\"end\":0} means unknown; always emitted on the wire because Go struct-value omitempty never omits it."
+        },
+        "cond": {
+          "type": "string",
+          "description": "Branch condition guarding the call site (e.g. \"msg != nil\"). Omitted when unconditional or unknown."
+        }
+      }
+    },
+    "range": {
+      "type": "object",
+      "description": "1-indexed inclusive line range.",
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

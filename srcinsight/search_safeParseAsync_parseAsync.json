@@ -1,0 +1,240 @@
+{
+  "query": "safeParseAsync parseAsync",
+  "hits": [
+    {
+      "id": "typescript:packages/zod/src/v3/types.ts:async-method:ZodType.safeParseAsync:1",
+      "name": "safeParseAsync",
+      "qualifiedName": "ZodType.safeParseAsync",
+      "kind": "async-method",
+      "filePath": "packages/zod/src/v3/types.ts",
+      "lineRange": {
+        "start": 298,
+        "end": 318
+      },
+      "dialect": "typescript",
+      "signature": "async safeParseAsync( data: unknown, params?: util.InexactPartial\u003cParseParams\u003e ): Promise\u003cSafeParseReturnType\u003cInput, Output\u003e\u003e",
+      "doc": "",
+      "vessel": {
+        "kind": "class",
+        "id": "typescript:packages/zod/src/v3/types.ts:class:ZodType:1",
+        "name": "ZodType"
+      },
+      "score": 0,
+      "mode": "exact",
+      "rank": 0
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/classic/parse.ts:const:safeParseAsync:1",
+      "name": "safeParseAsync",
+      "qualifiedName": "safeParseAsync",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/classic/parse.ts",
+      "lineRange": {
+        "start": 29,
+        "end": 33
+      },
+      "dialect": "typescript",
+      "signature": "const safeParseAsync = core._safeParseAsync(ZodRealError) as any",
+      "doc": "",
+      "score": 0,
+      "mode": "exact",
+      "rank": 1
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/classic/schemas.ts:async-method:safeParseAsync:1",
+      "name": "safeParseAsync",
+      "qualifiedName": "safeParseAsync",
+      "kind": "async-method",
+      "filePath": "packages/zod/src/v4/classic/schemas.ts",
+      "lineRange": {
+        "start": 305,
+        "end": 307
+      },
+      "dialect": "typescript",
+      "signature": "async safeParseAsync(data, params)",
+      "doc": "",
+      "score": 0,
+      "mode": "exact",
+      "rank": 2
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/core/parse.ts:const:safeParseAsync:1",
+      "name": "safeParseAsync",
+      "qualifiedName": "safeParseAsync",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/core/parse.ts",
+      "lineRange": {
+        "start": 119,
+        "end": 119
+      },
+      "dialect": "typescript",
+      "signature": "const safeParseAsync = _safeParseAsync(errors.$ZodRealError)",
+      "doc": "",
+      "score": 0,
+      "mode": "exact",
+      "rank": 3
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/mini/schemas.ts:method:safeParseAsync:1",
+      "name": "safeParseAsync",
+      "qualifiedName": "safeParseAsync",
+      "kind": "method",
+      "filePath": "packages/zod/src/v4/mini/schemas.ts",
+      "lineRange": {
+        "start": 71,
+        "end": 73
+      },
+      "dialect": "typescript",
+      "signature": "safeParseAsync(data, params)",
+      "doc": "",
+      "score": 0,
+      "mode": "exact",
+      "rank": 4
+    },
+    {
+      "id": "typescript:packages/zod/src/v3/types.ts:async-method:ZodType.parseAsync:1",
+      "name": "parseAsync",
+      "qualifiedName": "ZodType.parseAsync",
+      "kind": "async-method",
+      "filePath": "packages/zod/src/v3/types.ts",
+      "lineRange": {
+        "start": 292,
+        "end": 296
+      },
+      "dialect": "typescript",
+      "signature": "async parseAsync(data: unknown, params?: util.InexactPartial\u003cParseParams\u003e): Promise\u003cOutput\u003e",
+      "doc": "",
+      "vessel": {
+        "kind": "class",
+        "id": "typescript:packages/zod/src/v3/types.ts:class:ZodType:1",
+        "name": "ZodType"
+      },
+      "score": 0,
+      "mode": "exact",
+      "rank": 0
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/classic/parse.ts:const:parseAsync:1",
+      "name": "parseAsync",
+      "qualifiedName": "parseAsync",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/classic/parse.ts",
+      "lineRange": {
+        "start": 15,
+        "end": 20
+      },
+      "dialect": "typescript",
+      "signature": "const parseAsync = core._parseAsync(ZodRealError)",
+      "doc": "",
+      "score": 0,
+      "mode": "exact",
+      "rank": 1
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/classic/tests/error.test.ts:const:arrow.parseAsync:1",
+      "name": "parseAsync",
+      "qualifiedName": "arrow.parseAsync",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/classic/tests/error.test.ts",
+      "lineRange": {
+        "start": 759,
+        "end": 759
+      },
+      "dialect": "typescript",
+      "signature": "const parseAsync = schema.parseAsync",
+      "doc": "",
+      "vessel": {
+        "kind": "function",
+        "id": "",
+        "name": "arrow"
+      },
+      "score": 0,
+      "mode": "exact",
+      "rank": 2
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/core/parse.ts:const:_decodeAsync.parseAsync:1",
+      "name": "parseAsync",
+      "qualifiedName": "_decodeAsync.parseAsync",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/core/parse.ts",
+      "lineRange": {
+        "start": 252,
+        "end": 252
+      },
+      "dialect": "typescript",
+      "signature": "const parseAsync = _parseAsync(_Err)",
+      "doc": "",
+      "vessel": {
+        "kind": "function",
+        "id": "typescript:packages/zod/src/v4/core/parse.ts:arrow:_decodeAsync:1",
+        "name": "_decodeAsync"
+      },
+      "score": 0,
+      "mode": "exact",
+      "rank": 3
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/core/parse.ts:const:_encodeAsync.parseAsync:1",
+      "name": "parseAsync",
+      "qualifiedName": "_encodeAsync.parseAsync",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/core/parse.ts",
+      "lineRange": {
+        "start": 234,
+        "end": 234
+      },
+      "dialect": "typescript",
+      "signature": "const parseAsync = _parseAsync(_Err)",
+      "doc": "",
+      "vessel": {
+        "kind": "function",
+        "id": "typescript:packages/zod/src/v4/core/parse.ts:arrow:_encodeAsync:1",
+        "name": "_encodeAsync"
+      },
+      "score": 0,
+      "mode": "exact",
+      "rank": 4
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/core/parse.ts:const:parseAsync:1",
+      "name": "parseAsync",
+      "qualifiedName": "parseAsync",
+      "kind": "const",
+      "filePath": "packages/zod/src/v4/core/parse.ts",
+      "lineRange": {
+        "start": 63,
+        "end": 63
+      },
+      "dialect": "typescript",
+      "signature": "const parseAsync = _parseAsync(errors.$ZodRealError)",
+      "doc": "",
+      "score": 0,
+      "mode": "exact",
+      "rank": 5
+    },
+    {
+      "id": "typescript:packages/zod/src/v4/mini/schemas.ts:method:parseAsync:1",
+      "name": "parseAsync",
+      "qualifiedName": "parseAsync",
+      "kind": "method",
+      "filePath": "packages/zod/src/v4/mini/schemas.ts",
+      "lineRange": {
+        "start": 65,
+        "end": 67
+      },
+      "dialect": "typescript",
+      "signature": "parseAsync(data, params)",
+      "doc": "",
+      "score": 0,
+      "mode": "exact",
+      "rank": 6
+    }
+  ],
+  "stats": {
+    "filesScanned": 505,
+    "functionsIndexed": 20424,
+    "nodesReturned": 12,
+    "edgesReturned": 0
+  }
+}

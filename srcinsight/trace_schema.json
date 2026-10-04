@@ -1,0 +1,584 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SrcInsight TraceReport",
+  "description": "Response of the SrcInsight trace endpoint: multi-token flow. Tokens are a bag of symbol names (not exact EntryIDs) resolved to anchors; trails ride calls edges between anchors (undirected walkForward, or bidirectional walkBoth when from+to are set). Nodes are every anchor + trail step hydrated to full Function plus their 1-hop neighborhood in the asked kinds. Anchors carry score/mode/rank (same SearchHit as search); ripples map anchor and trail-step IDs to their wash (direct-caller count, caller files, test files within 3 caller hops); no markdown.",
+  "type": "object",
+  "required": [
+    "tokens",
+    "anchors",
+    "trails",
+    "nodes",
+    "edges",
+    "stats"
+  ],  "properties": {
+    "tokens": {
+      "type": "array",
+      "description": "Symbol-shaped tokens split from query (plus from/to when directed): deduped case-folded, len>=3, capped at 16.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "anchors": {
+      "type": "object",
+      "description": "Per-token vault resolution (exact => prefix => FTS => substring, first non-empty page wins, max 6 per token, 40 total). Empty array = token did not resolve.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/definitions/searchHit"
+        }
+      }
+    },
+    "trails": {
+      "type": "array",
+      "description": "Call paths joining anchors. Undirected: one deepest trail per seed (maxDepth default 7, cap 25, max 4 trails). Directed (from+to): shortest seed=>sink via bidirectional BFS (maxDepth default 12). Empty when no path connects anchors.",
+      "items": {
+        "$ref": "#/definitions/trail"
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "description": "Every anchor + trail step hydrated to Function plus their 1-hop neighborhood in the asked kinds (default all). Sorted by id.",
+      "items": {
+        "$ref": "#/definitions/function"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "description": "Trail calls edges plus the 1-hop neighborhood edges of every anchor/trail node in the asked kinds. Sorted by from/to/kind/siteRange.",
+      "items": {
+        "$ref": "#/definitions/edge"
+      }
+    },
+    "loose": {
+      "type": "object",
+      "description": "Unresolvable call/heritage refs owned by a node (FetchLooseEndsByOwner), kept for their scope label. Key is the owner EntryID. Omitted when empty.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/definitions/unresolvedRef"
+        }
+      }
+    },
+    "imports": {
+      "type": "object",
+      "description": "Import statements per file touching the node set (FetchImportsByFile). Key is the relative file path. Omitted when empty.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/definitions/importStmt"
+        }
+      }
+    },
+    "ripples": {
+      "type": "object",
+      "description": "Wash per head (anchors + trail steps): exact direct-caller count, caller files, and test files within 3 caller hops. Key is the owner EntryID. Omitted when empty.",
+      "additionalProperties": {
+        "$ref": "#/definitions/ripple"
+      }
+    },
+    "stats": {
+      "$ref": "#/definitions/stats"
+    }
+  },
+  "definitions": {
+    "ripple": {
+      "type": "object",
+      "description": "One node's wash: exact incoming-calls count, sorted caller files and test files (each capped at 8), exact totals past the caps, and whether a cap cut the walk short.",
+      "required": [
+        "callers"
+      ],
+      "properties": {
+        "callers": {
+          "type": "integer",
+          "description": "Exact COUNT of incoming calls edges, never capped."
+        },
+        "files": {
+          "type": "array",
+          "description": "Sorted unique hop-1 caller files, capped at 8.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tests": {
+          "type": "array",
+          "description": "Sorted unique test files within 3 caller hops, capped at 8.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fileTotal": {
+          "type": "integer",
+          "description": "Unique hop-1 caller files the walk saw: exact when the walk completes, partial when truncated. Omitted when zero."
+        },
+        "testTotal": {
+          "type": "integer",
+          "description": "Unique test files the walk saw: exact when the walk completes, partial when truncated. Omitted when zero."
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "True when the 150-node walk cap or an 8-file list cap cut the answer short."
+        }
+      }
+    },
+    "trail": {
+      "type": "object",
+      "description": "One call path: steps in call order with the calls edges between them. Each edge carries the call-site line range inside its From node.",
+      "required": [
+        "steps",
+        "edges"
+      ],
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "Stable EntryID: <lang>:<relPath>:<kind>:<qualifiedName>:<ordinal>"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/edge"
+          }
+        }
+      }
+    },
+    "unresolvedRef": {
+      "type": "object",
+      "description": "One unresolvable call/heritage owned by a node, kept for its scope label. siteRange is the call-site range inside the owner (0,0 = unknown).",
+      "required": [
+        "name",
+        "kind",
+        "scope"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "description": "Values: 'internal' (project module but unresolved), 'internal:<file>' (resolved in-project, display only), 'external:<module>' (external dependency), 'external:runtime' (language/global builtin), or 'unresolved'.",
+          "examples": [
+            "internal",
+            "external:express",
+            "external:runtime",
+            "unresolved"
+          ]
+        },
+        "siteRange": {
+          "$ref": "#/definitions/range",
+          "description": "Call-site line range inside the owner. Zero value {\"start\":0,\"end\":0} means unknown; always emitted on the wire because Go struct-value omitempty never omits it."
+        }
+      }
+    },
+    "importStmt": {
+      "type": "object",
+      "description": "A single import as seen in a source file.",
+      "required": [
+        "localName",
+        "source",
+        "kind"
+      ],
+      "properties": {
+        "localName": {
+          "type": "string",
+          "description": "Local binding name, e.g. 'auth', 'validateToken' or '*'."
+        },
+        "source": {
+          "type": "string",
+          "description": "Module specifier, e.g. 'express', './validator'."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "default",
+            "named",
+            "namespace",
+            "side-effect",
+            "gopackage"
+          ],
+          "description": "'gopackage' is the synthetic per-file row the Go extractor emits to carry the file's package clause."
+        },
+        "alias": {
+          "type": "string",
+          "description": "Alias target for 'as' renames, e.g. 'as v' -> 'v'. Always emitted on the wire (\"\" when none, no omitempty)."
+        }
+      }
+    },
+    "searchHit": {
+      "type": "object",
+      "description": "Scored anchor: ranking signal (score/mode/rank) plus context (signature/doc/vessel). Per-token order is exact-name, then qualified-suffix, then score, then id.",
+      "required": [
+        "id",
+        "name",
+        "qualifiedName",
+        "kind",
+        "filePath",
+        "lineRange",
+        "dialect",
+        "signature",
+        "doc",
+        "score",
+        "mode",
+        "rank"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable EntryID: <lang>:<relPath>:<kind>:<qualifiedName>:<ordinal>"
+        },
+        "name": {
+          "type": "string"
+        },
+        "qualifiedName": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "function",
+            "method",
+            "arrow",
+            "constructor",
+            "generator",
+            "class",
+            "interface",
+            "type",
+            "enum",
+            "module",
+            "const",
+            "unresolved",
+            "async-function",
+            "async-arrow",
+            "async-method"
+          ]
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "lineRange": {
+          "$ref": "#/definitions/range"
+        },
+        "dialect": {
+          "type": "string",
+          "enum": ["typescript", "python", "go"],
+          "description": "Source language of the indexed file."
+        },
+        "signature": {
+          "type": "string"
+        },
+        "doc": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Entry-level convention marks (NestJS: controller/injectable/module, route:Get/route:Post, resolver, query/mutation/subscription/resolve-field). Omitted when empty."
+        },
+        "vessel": {
+          "$ref": "#/definitions/container"
+        },
+        "score": {
+          "type": "number",
+          "description": "Raw FTS5 bm25 for fts hits (negative, smaller = more relevant, weighted name=20 qualified=10 doc=3); 0 for exact/prefix/substring."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["exact", "prefix", "fts", "substring"],
+          "description": "Winning primitive for this hit."
+        },
+        "rank": {
+          "type": "integer",
+          "description": "0-based position inside the primitive page before union/filter."
+        }
+      }
+    },
+    "functionRef": {
+      "type": "object",
+      "description": "A lightweight edge reference (no signature or body).",
+      "required": [
+        "id",
+        "name",
+        "filePath",
+        "lineRange"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable EntryID; empty for unresolved calls."
+        },
+        "name": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "lineRange": {
+          "$ref": "#/definitions/range"
+        },
+        "scope": {
+          "type": "string",
+          "description": "Classifies the callee. Values: 'internal:<file>' (resolves to an indexed project function), 'internal' (unresolved but imported from a project module), 'external:<module>' (external dependency), 'external:runtime' (language/global builtin), or 'unresolved' (cannot tell).",
+          "examples": [
+            "internal:src/auth/validator.ts",
+            "internal",
+            "external:express",
+            "external:runtime",
+            "unresolved"
+          ]
+        },
+        "siteRange": {
+          "$ref": "#/definitions/range",
+          "description": "1-indexed line range inside the caller where this reference occurs (the call site). Zero value {\"start\":0,\"end\":0} means unknown; always emitted on the wire because Go struct-value omitempty never omits it."
+        },
+        "cond": {
+          "type": "string",
+          "description": "Branch condition guarding this call site. Omitted when unconditional or unknown."
+        }
+      }
+    },
+    "function": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "filePath",
+        "lineRange",
+        "kind",
+        "file",
+        "signature",
+        "calls",
+        "calledBy"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "lineRange": {
+          "$ref": "#/definitions/range"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "function",
+            "method",
+            "arrow",
+            "constructor",
+            "generator",
+            "class",
+            "interface",
+            "type",
+            "enum",
+            "module",
+            "const",
+            "unresolved",
+            "async-function",
+            "async-arrow",
+            "async-method"
+          ]
+        },
+        "file": {
+          "$ref": "#/definitions/container",
+          "description": "Enclosing file container; always present."
+        },
+        "container": {
+          "$ref": "#/definitions/container",
+          "description": "Nearest enclosing class/module container, if any."
+        },
+        "signature": {
+          "type": "string",
+          "description": "One-line function head (or type declaration head or const declaration); never includes the body."
+        },
+        "doc": {
+          "type": "string",
+          "description": "Preceding contiguous comment block, if any."
+        },
+        "testTitle": {
+          "type": "string",
+          "description": "Test-case title when an anonymous def is a test()/it() callback. Omitted when empty."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Entry-level convention marks (NestJS: controller/injectable/module, route:Get/route:Post, resolver, query/mutation/subscription/resolve-field). Omitted when empty."
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "calledBy": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "extends": {
+          "type": "array",
+          "description": "Type heritage targets for class/interface nodes (edge kind 'extends'). Empty for function nodes.",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "implements": {
+          "type": "array",
+          "description": "Interfaces implemented by class/abstract-class nodes (edge kind 'implements'). Empty for function nodes.",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "paramTypes": {
+          "type": "array",
+          "description": "Typed params unwrapped to base type refs (Pick/Omit/Promise etc collapsed to inner type). Edge kind 'param'.",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "returnTypes": {
+          "type": "array",
+          "description": "Typed returns unwrapped to base type refs. Edge kind 'return'.",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        },
+        "uses": {
+          "type": "array",
+          "description": "Const value dependencies unwrapped to identifier refs. Edge kind 'uses'.",
+          "items": {
+            "$ref": "#/definitions/functionRef"
+          }
+        }
+      }
+    },
+    "container": {
+      "type": "object",
+      "description": "A structural container (file, class, module, namespace or function) a definition lives in.",
+      "required": [
+        "kind",
+        "id",
+        "name"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "file",
+            "class",
+            "module",
+            "namespace",
+            "function"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "description": "Stable container ID. For files: 'file:<relPath>'. For classes: the class node's EntryID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Container name, e.g. basename for a file or the class name."
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "kind"
+      ],
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "calls",
+            "extends",
+            "implements",
+            "param",
+            "return",
+            "uses"
+          ]
+        },
+        "siteRange": {
+          "$ref": "#/definitions/range",
+          "description": "Call-site line range inside the From node. Zero value {\"start\":0,\"end\":0} means unknown; always emitted on the wire because Go struct-value omitempty never omits it."
+        },
+        "cond": {
+          "type": "string",
+          "description": "Branch condition guarding the call site (e.g. \"msg != nil\"). Omitted when unconditional or unknown."
+        }
+      }
+    },
+    "range": {
+      "type": "object",
+      "description": "1-indexed inclusive line range.",
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "required": [
+        "filesScanned",
+        "functionsIndexed",
+        "nodesReturned",
+        "edgesReturned"
+      ],
+      "properties": {
+        "filesScanned": {
+          "type": "integer"
+        },
+        "functionsIndexed": {
+          "type": "integer"
+        },
+        "nodesReturned": {
+          "type": "integer"
+        },
+        "edgesReturned": {
+          "type": "integer",
+          "description": "Always emitted on the wire (no omitempty)."
+        },
+        "internalCalls": {
+          "type": "integer",
+          "description": "Omitted when zero."
+        },
+        "externalCalls": {
+          "type": "integer",
+          "description": "Omitted when zero."
+        },
+        "unresolvedCalls": {
+          "type": "integer",
+          "description": "Omitted when zero."
+        }
+      }
+    }
+  }
+}
