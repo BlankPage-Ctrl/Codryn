@@ -5,10 +5,13 @@
 #
 # Layout: dist/build-<version>-<os>-<arch>/
 #   codryn[.exe]   single-file Bun binary (apps/index.ts)
-#   insight/       SrcInsight binary (mirrors ~/codryn/backend/bin/insight/)
+#   insight/       SrcInsight binary (mirrors ~/.codryn/backend/bin/insight/)
 #   rg/            ripgrep binary with explicit version in the file name
-#                  (mirrors ~/codryn/backend/bin/rg/), e.g.
+#                  (mirrors ~/.codryn/backend/bin/rg/), e.g.
 #                  rg-v13.0.0-x86_64-unknown-linux-musl
+#   skills/        builtin skill files (apps/skills/builtin); the compiled
+#                  binary cannot see them through its $bunfs path, so they
+#                  are staged next to the executable like drizzle/ above.
 #
 # Notes:
 # - Builds are native per runner (no bun --target cross-compile).
@@ -77,7 +80,7 @@ build-backend:
 	fi
 	mkdir -p "$(OUTDIR)"
 	echo "==> bun compile $(ENTRY) -> $(OUTDIR)/$(BINNAME) (OS=$(OS) ARCH=$(ARCH) VERSION=$(VERSION))"
-	bun build --compile "$(ENTRY)" --outfile "$(OUTDIR)/$(BINNAME)"
+	bun build --compile --define 'process.env.CODRYN_RELEASE_BUILD="1"' "$(ENTRY)" --outfile "$(OUTDIR)/$(BINNAME)"
 	if [ "$(OS)" != "windows" ]; then chmod +x "$(OUTDIR)/$(BINNAME)"; fi
 	# The compiled binary cannot see drizzle/ through its $bunfs path, and
 	# resolveMigrationsFolder() looks next to the executable. Stage the
@@ -85,6 +88,12 @@ build-backend:
 	rm -rf "$(OUTDIR)/drizzle"
 	cp -r drizzle "$(OUTDIR)/drizzle"
 	test -f "$(OUTDIR)/drizzle/meta/_journal.json" || { echo "error: staged migrations incomplete" >&2; exit 1; }
+	# The compiled binary cannot see apps/skills/builtin through its $bunfs
+	# path, so stage the whole dir (SKILL.md plus future sibling resources).
+	rm -rf "$(OUTDIR)/skills"
+	mkdir -p "$(OUTDIR)/skills"
+	cp -r apps/skills/builtin "$(OUTDIR)/skills/builtin"
+	test -n "$$(find "$(OUTDIR)/skills" -name SKILL.md | head -n 1)" || { echo "error: staged builtin skills incomplete (no SKILL.md)" >&2; exit 1; }
 	ls -la "$(OUTDIR)"
 
 build-fetch:

@@ -31,10 +31,10 @@ export class GrepStorage implements IGrepStorage {
 export const RG_BINARY_ENV = 'CODRYN_RG_PATH';
 
 /**
- * Prod bundle layout (all OSes): `~/codryn/backend/bin/rg/`.
- * Mirrors insight's `~/codryn/backend/bin/insight/`.
+ * Prod bundle layout (all OSes): `~/.codryn/backend/bin/rg/`.
+ * Mirrors insight's `~/.codryn/backend/bin/insight/`.
  */
-export const RG_PROD_DIR_PARTS = ['codryn', 'backend', 'bin', 'rg'] as const;
+export const RG_PROD_DIR_PARTS = ['.codryn', 'backend', 'bin', 'rg'] as const;
 
 function safeHomedir(): string {
   try {

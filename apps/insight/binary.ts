@@ -269,7 +269,7 @@ export interface FindInsightBinaryOpts {
 
 /**
  * Locate a runnable srcinsight binary.
- * Order: explicit override > `$INSIGHT_BINARY` > prod (`~/codryn/backend/bin/insight/`)
+ * Order: explicit override > `$INSIGHT_BINARY` > prod (`~/.codryn/backend/bin/insight/`)
  * > dev (`packages/backend/srcinsight/`) > PATH.
  * Explicit paths are returned as-is when they exist, and throw InsightBinaryError when missing.
  */

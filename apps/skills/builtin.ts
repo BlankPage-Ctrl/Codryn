@@ -11,16 +11,20 @@ import type { SkillLogger, SkillMeta } from './types.js';
  * They are hardcoded (no user setup needed) but load through the same
  * `skill` tool as global/project skills.
  *
- * Path resolution covers both runtimes (ESM, `type: module`):
- * - dev/test (`tsx`, `ts-node`, `swc-node`): file lives in `apps/skills`.
- * - built (`tsc` -> `dist/`): file lives in `dist/apps/skills`, so walk
- *   up looking for the `apps/skills/builtin` source dir in the checkout.
- * `tsc` does not copy `.md` files into `dist/`, hence the walk-up.
+ * Path resolution covers every runtime (plain ASCII paths only):
+ * - binary distribution: `make build-backend` stages builtin/ next to the
+ *   compiled executable (OUTDIR/skills/builtin), whose module URL lives on
+ *   the virtual $bunfs path (no builtin sibling there). Probe the executable
+ *   directory first, mirroring resolveMigrationsFolder().
+ * - dev/test (`bun`, `tsx`) and `tsc` output: walk up looking for the
+ *   `apps/skills/builtin` source dir in the checkout (`tsc` does not copy
+ *   `.md` files into `dist/`, hence the walk-up).
  */
 
 function candidateRoots(): string[] {
+  const execCand = path.join(path.dirname(process.execPath), 'skills', 'builtin');
   const here = dirname(fileURLToPath(import.meta.url));
-  const roots = [path.join(here, 'builtin')];
+  const roots = [execCand, path.join(here, 'builtin')];
   let dir = here;
   for (let depth = 0; depth < 8; depth++) {
     roots.push(path.join(dir, 'apps', 'skills', 'builtin'));

@@ -12,6 +12,8 @@ export interface BasePathOpts extends CodrynHomeOpts {
   env?: Record<string, string | undefined>;
 }
 
+const RELEASE_BUILD: boolean = process.env.CODRYN_RELEASE_BUILD === '1';
+
 export function isDevMode(opts: { env?: Record<string, string | undefined> } = {}): boolean {
   const env = opts.env ?? process.env;
   const mode = env.APP_ENV ?? env.APP_MODE;
@@ -19,6 +21,8 @@ export function isDevMode(opts: { env?: Record<string, string | undefined> } = {
   if (mode !== undefined) {
     return mode === 'development' || mode === 'dev' || mode === 'local';
   }
+
+  if (RELEASE_BUILD) return false;
 
   return env.NODE_ENV !== 'production';
 }
@@ -36,6 +40,8 @@ export function resolveBackendBasePath(opts: CodrynHomeOpts = {}): string {
  * Where `config.toml`, `data.db`, `attachments/` and `logs/` live.
  * Dev mode: cwd (project root), so dev stays local like before.
  * Production: always `~/.codryn/backend` on every OS.
+ * Release binaries always resolve production (baked marker), unless an
+ * explicit dev env (APP_ENV/APP_MODE) or --data-dir says otherwise.
  * Callers that need isolation (tests, scripts, desktop spawn) pass an
  * explicit base path down the call chain instead of env vars.
  */

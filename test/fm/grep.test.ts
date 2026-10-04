@@ -221,7 +221,7 @@ function makeProdHome(t: { after: (fn: () => void) => void }, files: string[]): 
   t.after(() => {
     rmSync(home, { recursive: true, force: true });
   });
-  const dir = join(home, 'codryn', 'backend', 'bin', 'rg');
+  const dir = join(home, '.codryn', 'backend', 'bin', 'rg');
   mkdirSync(dir, { recursive: true });
   for (const f of files) writeFileSync(join(dir, f), 'fake');
   return home;
@@ -232,7 +232,7 @@ test('resolveRgPath: prod dir lookup finds versioned rg (posix)', async (t) => {
   const { resolveRgPath } = await import('../../src/fm/storages/cold/grep.js');
   assert.equal(
     resolveRgPath({ env: {}, homeDir: home, platform: 'linux' }),
-    join(home, 'codryn', 'backend', 'bin', 'rg', 'rg-v13.0.0-x86_64-unknown-linux-musl'),
+    join(home, '.codryn', 'backend', 'bin', 'rg', 'rg-v13.0.0-x86_64-unknown-linux-musl'),
   );
 });
 
@@ -241,14 +241,14 @@ test('resolveRgPath: prod dir lookup finds versioned rg.exe on win32', async (t)
   const { resolveRgPath } = await import('../../src/fm/storages/cold/grep.js');
   assert.equal(
     resolveRgPath({ env: {}, homeDir: home, platform: 'win32' }),
-    join(home, 'codryn', 'backend', 'bin', 'rg', 'rg-v13.0.0-x86_64-pc-windows-msvc.exe'),
+    join(home, '.codryn', 'backend', 'bin', 'rg', 'rg-v13.0.0-x86_64-pc-windows-msvc.exe'),
   );
 });
 
 test('findRgInDir: plain rg without version is ignored', async (t) => {
   const home = makeProdHome(t, ['rg']);
   const { findRgInDir } = await import('../../src/fm/storages/cold/grep.js');
-  assert.equal(findRgInDir(join(home, 'codryn', 'backend', 'bin', 'rg'), 'linux'), null);
+  assert.equal(findRgInDir(join(home, '.codryn', 'backend', 'bin', 'rg'), 'linux'), null);
 });
 
 test('resolveRgPath: highest version wins', async (t) => {
@@ -259,7 +259,7 @@ test('resolveRgPath: highest version wins', async (t) => {
   const { resolveRgPath } = await import('../../src/fm/storages/cold/grep.js');
   assert.equal(
     resolveRgPath({ env: {}, homeDir: home, platform: 'linux' }),
-    join(home, 'codryn', 'backend', 'bin', 'rg', 'rg-v14.1.0-x86_64-unknown-linux-musl'),
+    join(home, '.codryn', 'backend', 'bin', 'rg', 'rg-v14.1.0-x86_64-unknown-linux-musl'),
   );
 });
 

@@ -105,7 +105,7 @@ test('find: explicit override and env passthrough', () => {
 
 test('find: prod dir wins over dev dir', () => {
   const { root } = makeRoot(['srcinsight-v0.0.10-linux-amd64']);
-  const prod = join(root, 'home', 'codryn', 'backend', 'bin', 'insight');
+  const prod = join(root, 'home', '.codryn', 'backend', 'bin', 'insight');
   mkdirSync(prod, { recursive: true });
   writeFileSync(join(prod, 'srcinsight-v9.9.9-linux-amd64'), 'fake');
   const hit = findInsightBinary({
