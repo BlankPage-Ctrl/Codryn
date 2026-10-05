@@ -67,7 +67,11 @@ test('edit_file e2e: LF SEARCH block edits a CRLF file and preserves CRLF', asyn
   if (typeof rawOut !== 'string') {
     assert.fail(`expected string tool output, got:\n${String(rawOut)}`);
   }
-  assert.match(rawOut, /# Success \d+ edits? `main\.ts` applied/, `expected success, got:\n${rawOut}`);
+  assert.match(
+    rawOut,
+    /# Success \d+ edits? `main\.ts` applied/,
+    `expected success, got:\n${rawOut}`,
+  );
   assert.ok(!rawOut.includes('**Error**'));
 
   const onDisk = await readFile(join(dir, 'main.ts'), 'utf-8');
@@ -91,7 +95,11 @@ test('edit_file e2e: same edit with a lines hint also succeeds on CRLF', async (
   if (typeof rawOut !== 'string') {
     assert.fail(`expected string tool output, got:\n${String(rawOut)}`);
   }
-  assert.match(rawOut, /# Success \d+ edits? `main\.ts` applied/, `expected success, got:\n${rawOut}`);
+  assert.match(
+    rawOut,
+    /# Success \d+ edits? `main\.ts` applied/,
+    `expected success, got:\n${rawOut}`,
+  );
 
   const onDisk = await readFile(join(dir, 'main.ts'), 'utf-8');
   assert.ok(onDisk.includes('ValidationPipe'));
