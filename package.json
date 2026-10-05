@@ -1,6 +1,6 @@
 {
   "name": "@codryn/backend",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Codryn backend (Fastify + SQLite + Drizzle).",
   "main": "dist/index.js",
   "bin": {
