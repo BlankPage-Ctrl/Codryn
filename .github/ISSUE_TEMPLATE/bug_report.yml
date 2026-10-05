@@ -55,8 +55,10 @@ body:
       label: Relevant logs
       description: Paste the relevant part of logs/app.log. Never paste secrets or tokens.
       render: text
-  - type: image
+  - type: upload
     id: proof
     attributes:
       label: Proof (optional)
       description: Screenshot or recording that shows the issue.
+    validations:
+      required: false

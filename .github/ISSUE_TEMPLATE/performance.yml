@@ -23,8 +23,10 @@ body:
       placeholder: e.g. Linux amd64, Bun 1.x, model gpt-5
     validations:
       required: true
-  - type: image
+  - type: upload
     id: proof
     attributes:
       label: Proof (optional)
       description: Screenshot of timings, graphs, or profiles, if any.
+    validations:
+      required: false

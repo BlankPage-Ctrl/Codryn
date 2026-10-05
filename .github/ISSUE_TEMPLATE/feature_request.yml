@@ -41,8 +41,10 @@ body:
       label: Stable core notice
       options:
         - label: I understand changes inside `src/` need maintainer discussion first (see CONTRIBUTING.md).
-  - type: image
+  - type: upload
     id: proof
     attributes:
       label: Proof (optional)
       description: Screenshot or mockup that shows the idea, if any.
+    validations:
+      required: false
