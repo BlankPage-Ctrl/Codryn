@@ -39,7 +39,7 @@
     "@openrouter/ai-sdk-provider": "^3.0.0",
     "@vscode/ripgrep": "^1.18.0",
     "ai": "^7.0.30",
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "12.11.1",
     "chokidar": "^5.0.0",
     "commander": "^15.0.0",
     "dotenv": "^17.4.2",
