@@ -15,7 +15,8 @@ async function setup() {
   const dir = await mkdtemp(join(tmpdir(), 'msg-revert-'));
   const dbPath = join(dir, 'test.db');
   await runMigrations(dbPath);
-  const db = await new DatabaseManager(schema, dbPath).init();
+  const manager = new DatabaseManager(schema, dbPath);
+  const db = await manager.init();
   const repo = new MessagesRepository(
     new ColdMessagesStorage(db as never),
     new ColdMessagePartsStorage(db as never),
@@ -23,7 +24,10 @@ async function setup() {
   );
   return {
     repo,
-    cleanup: () => rm(dir, { recursive: true, force: true }),
+    cleanup: async () => {
+      await manager.close();
+      await rm(dir, { recursive: true, force: true });
+    },
   };
 }
 

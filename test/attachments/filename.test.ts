@@ -5,7 +5,8 @@ import { extensionForMediaType, sanitizeFilename } from '../../src/attachments/u
 test('sanitize keeps readable names but strips danger', () => {
   assert.equal(sanitizeFilename('screenshot 1.png'), 'screenshot_1.png');
   assert.equal(sanitizeFilename('../../etc/passwd'), 'passwd');
-  assert.equal(sanitizeFilename('a/b\\c.png'), 'b_c.png');
+  assert.equal(sanitizeFilename('a/b\\c.png'), 'c.png');
+  assert.equal(sanitizeFilename('C:\\fakepath\\photo.png'), 'photo.png');
   assert.equal(sanitizeFilename('foto!!!keren###.jpg'), 'foto_keren_.jpg');
 });
 

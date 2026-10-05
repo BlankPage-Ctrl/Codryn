@@ -32,11 +32,11 @@ test('isDevMode: falls back to NODE_ENV !== production', () => {
 
 test('resolveCodrynHome: always ~/.codryn regardless of env', () => {
   assert.equal(resolveCodrynHome({ home: '/home/u' }), join('/home/u', CODRYN_DIR_NAME));
-  assert.equal(resolveCodrynHome({ home: '/home/u' }), '/home/u/.codryn');
+  assert.equal(resolveCodrynHome({ home: '/home/u' }), join('/home/u', CODRYN_DIR_NAME));
 });
 
 test('resolveBackendBasePath: ~/.codryn/backend', () => {
-  assert.equal(resolveBackendBasePath({ home: '/home/u' }), '/home/u/.codryn/backend');
+  assert.equal(resolveBackendBasePath({ home: '/home/u' }), join('/home/u', CODRYN_DIR_NAME, BACKEND_DIR_NAME));
   assert.equal(BACKEND_DIR_NAME, 'backend');
 });
 
@@ -51,20 +51,20 @@ test('resolveConfigBasePath: dev mode writes to cwd (project root)', () => {
 test('resolveConfigBasePath: production goes to ~/.codryn/backend', () => {
   assert.equal(
     resolveConfigBasePath({ cwd: '/project', home: '/home/u', env: { APP_ENV: 'production' } }),
-    '/home/u/.codryn/backend',
+    join('/home/u', CODRYN_DIR_NAME, BACKEND_DIR_NAME),
   );
   assert.equal(
     resolveConfigBasePath({ cwd: '/project', home: '/home/u', env: { NODE_ENV: 'production' } }),
-    '/home/u/.codryn/backend',
+    join('/home/u', CODRYN_DIR_NAME, BACKEND_DIR_NAME),
   );
 });
 
 test('resolveDatabasePath: legacy file: prefix is stripped to a plain path', () => {
-  assert.equal(resolveDatabasePath('file:data.db', '/base'), '/base/data.db');
+  assert.equal(resolveDatabasePath('file:data.db', '/base'), join('/base', 'data.db'));
 });
 
 test('resolveDatabasePath: plain relative path resolved against basePath', () => {
-  assert.equal(resolveDatabasePath('data.db', '/base'), '/base/data.db');
+  assert.equal(resolveDatabasePath('data.db', '/base'), join('/base', 'data.db'));
 });
 
 test('resolveDatabasePath: leaves :memory: untouched', () => {

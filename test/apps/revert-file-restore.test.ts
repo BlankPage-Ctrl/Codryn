@@ -42,7 +42,8 @@ async function setup() {
   await mkdir(ws, { recursive: true });
   const dbPath = join(dir, 'test.db');
   await runMigrations(dbPath);
-  const db = await new DatabaseManager(schema, dbPath).init();
+  const manager = new DatabaseManager(schema, dbPath);
+  const db = await manager.init();
   const messagesRepo = new MessagesRepository(
     new ColdMessagesStorage(db as never),
     new ColdMessagePartsStorage(db as never),
@@ -68,7 +69,10 @@ async function setup() {
     ctx,
     edit,
     fileHistoryStorage,
-    cleanup: () => rm(dir, { recursive: true, force: true }),
+    cleanup: async () => {
+      await manager.close();
+      await rm(dir, { recursive: true, force: true });
+    },
   };
 }
 

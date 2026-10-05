@@ -21,7 +21,7 @@ function makeRoot(files: string[]): { root: string; bindir: string } {
   const root = mkdtempSync(join(tmpdir(), 'insight-bin-'));
   const bindir = join(root, 'packages', 'backend', 'srcinsight');
   mkdirSync(bindir, { recursive: true });
-  for (const f of files) writeFileSync(join(bindir, f), 'fake');
+  for (const f of files) writeFileSync(join(bindir, f), 'fake', { mode: 0o755 });
   return { root, bindir };
 }
 

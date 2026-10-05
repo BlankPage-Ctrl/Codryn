@@ -33,7 +33,7 @@ test('edit_file: success returns header plus unified diff', async (t) => {
     { toolCallId: 'call-1' },
   );
   const out = requireText(rawOut);
-  assert.ok(out.includes('# `a.txt` — 1 edit applied'));
+  assert.match(out, /# Success \d+ edits? `a\.txt` applied/);
   assert.ok(out.includes('```diff'));
   assert.ok(out.includes('-two'));
   assert.ok(out.includes('+TWO'));

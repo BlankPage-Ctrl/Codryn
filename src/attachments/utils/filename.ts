@@ -1,8 +1,14 @@
-import { basename } from 'node:path';
-
 /* Format `<id>__<sanitized>` */
 export function sanitizeFilename(raw: string, maxLength = 100): string {
-  const base = basename(raw.trim()).replace(/\0/g, '');
+  // Split on both separators explicitly: attachment names may carry Windows
+  // paths even when the server runs on Linux (browsers send `C:\fakepath\`),
+  // while node:path.basename only strips the host platform's separator.
+  const baseRaw = raw
+    .trim()
+    .split(/[/\\]+/)
+    .filter((seg) => seg.length > 0)
+    .pop() ?? '';
+  const base = baseRaw.replace(/\0/g, '');
   const cleaned = base.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/_+/g, '_');
   let trimmed = cleaned.replace(/^[._]+/, '').replace(/[._]+$/, '');
   if (trimmed.length > maxLength) {

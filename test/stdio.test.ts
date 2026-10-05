@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { Container } from '../apps/bootstrap.js';
+import { NotFoundError } from '../apps/shared/errors.js';
 import { dispatch } from '../apps/stdio/dispatch.js';
 import type {
   JsonRpcNotification,
@@ -110,7 +111,7 @@ test('dispatch: AppError maps to server error with code and status', async () =>
   const ctx = {
     workspacesService: {
       findOne: async () => {
-        throw new Error('boom');
+        throw new NotFoundError('workspace nope not found');
       },
     },
   } as unknown as Container;

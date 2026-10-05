@@ -17,7 +17,8 @@ async function setup() {
   const dir = await mkdtemp(join(tmpdir(), 'msg-cancel-partial-'));
   const dbPath = join(dir, 'test.db');
   await runMigrations(dbPath);
-  const db = await new DatabaseManager(schema, dbPath).init();
+  const manager = new DatabaseManager(schema, dbPath);
+  const db = await manager.init();
   const repo = new MessagesRepository(
     new ColdMessagesStorage(db as never),
     new ColdMessagePartsStorage(db as never),
@@ -25,7 +26,10 @@ async function setup() {
   );
   const messagesService = new MessagesService(repo);
   const runService = new RunsService(new RunsRepository(new RunHotStorage()));
-  return { messagesService, runService, cleanup: () => rm(dir, { recursive: true, force: true }) };
+  return { messagesService, runService, cleanup: async () => {
+    await manager.close();
+    await rm(dir, { recursive: true, force: true });
+  } };
 }
 
 test('cancel preserves partial parts + run steps (regression: Stop wiped DB via discard)', async () => {

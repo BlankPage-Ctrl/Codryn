@@ -26,7 +26,8 @@ async function setup() {
   await mkdir(ws, { recursive: true });
   const dbPath = join(dir, 'test.db');
   await runMigrations(dbPath);
-  const db = await new DatabaseManager(schema, dbPath).init();
+  const manager = new DatabaseManager(schema, dbPath);
+  const db = await manager.init();
   const fileRepo = new FileRepository(new NodeFileSystem());
   const history = new ColdFileHistoryStorage(db as never);
   const edit = new EditFileService(fileRepo, ws, history);
@@ -41,7 +42,10 @@ async function setup() {
     edit,
     create,
     revert,
-    cleanup: () => rm(dir, { recursive: true, force: true }),
+    cleanup: async () => {
+      await manager.close();
+      await rm(dir, { recursive: true, force: true });
+    },
   };
 }
 

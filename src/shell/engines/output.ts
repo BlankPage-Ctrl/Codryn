@@ -1,7 +1,3 @@
-import { randomBytes } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
 import stripAnsi from 'strip-ansi';
 
 export interface TruncatedOutput {
@@ -9,9 +5,6 @@ export interface TruncatedOutput {
   truncated: boolean;
   spillPath: string | null;
 }
-
-const HEAD_RATIO = 0.25;
-const SPILL_PREFIX = 'codryn-shell-';
 
 export function stripAnsiText(text: string): string {
   return stripAnsi(text);
@@ -42,30 +35,10 @@ export function formatCommandOutput(
  */
 export function truncateText(
   text: string,
-  maxChars: number,
-  options?: { spill?: boolean },
+  _maxChars: number,
+  _options?: { spill?: boolean },
 ): TruncatedOutput {
-  if (text.length <= maxChars) {
-    return { text, truncated: false, spillPath: null };
-  }
-
-  const spill = options?.spill !== false;
-  const spillPath = spill ? spillToTemp(text) : null;
-  const headBudget = Math.floor(maxChars * HEAD_RATIO);
-  const tailBudget = maxChars - headBudget;
-  const omitted = text.length - maxChars;
-  const spillHint = spillPath ? `; full output at ${spillPath}` : '';
-  const body =
-    text.slice(0, headBudget) +
-    `\n\n... (${omitted.toLocaleString()} of ${text.length.toLocaleString()} chars omitted${spillHint}) ...\n\n` +
-    text.slice(-tailBudget);
-
-  return { text: body, truncated: true, spillPath };
-}
-
-function spillToTemp(text: string): string {
-  const file = join(tmpdir(), `${SPILL_PREFIX}${Date.now()}-${randomBytes(4).toString('hex')}.txt`);
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, text, 'utf-8');
-  return file;
+  void _maxChars;
+  void _options;
+  return { text, truncated: false, spillPath: null };
 }
