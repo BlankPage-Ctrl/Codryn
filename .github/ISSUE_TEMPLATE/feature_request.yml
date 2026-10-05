@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest an idea or improvement.
+title: '[feat]: '
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this solve? Who hits it?
+      placeholder: When I..., I cannot...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      placeholder: Add / change... so that...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - apps/
+        - src/
+        - docs
+        - install / build
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: I also thought about..., but...
+  - type: checkboxes
+    id: src-check
+    attributes:
+      label: Stable core notice
+      options:
+        - label: I understand changes inside `src/` need maintainer discussion first (see CONTRIBUTING.md).
+  - type: image
+    id: proof
+    attributes:
+      label: Proof (optional)
+      description: Screenshot or mockup that shows the idea, if any.

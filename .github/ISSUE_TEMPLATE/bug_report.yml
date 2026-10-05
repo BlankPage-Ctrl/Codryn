@@ -1,0 +1,62 @@
+name: Bug report
+description: Something is broken. Tell us what happened.
+title: '[bug]: '
+labels: ['bug']
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Codryn version
+      placeholder: e.g. 0.0.1
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS and architecture
+      placeholder: e.g. Windows 11 amd64
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport
+      options:
+        - http
+        - stdio
+        - not sure
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and model (if relevant)
+      placeholder: e.g. OpenRouter, gpt-5
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Expected vs actual
+      placeholder: I expected..., but got...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste the relevant part of logs/app.log. Never paste secrets or tokens.
+      render: text
+  - type: image
+    id: proof
+    attributes:
+      label: Proof (optional)
+      description: Screenshot or recording that shows the issue.

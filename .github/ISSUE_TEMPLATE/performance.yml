@@ -1,0 +1,30 @@
+name: Performance report
+description: Something is too slow or too heavy.
+title: '[perf]: '
+labels: ['performance']
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Scenario
+      description: What were you doing when it felt slow?
+      placeholder: e.g. start.message-run on a workspace with ~500 files
+    validations:
+      required: true
+  - type: textarea
+    id: numbers
+    attributes:
+      label: Numbers (before / after, if any)
+      placeholder: e.g. run took ~90s, expected under 20s
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: e.g. Linux amd64, Bun 1.x, model gpt-5
+    validations:
+      required: true
+  - type: image
+    id: proof
+    attributes:
+      label: Proof (optional)
+      description: Screenshot of timings, graphs, or profiles, if any.

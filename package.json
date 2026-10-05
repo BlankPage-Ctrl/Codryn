@@ -29,7 +29,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@ai-sdk/openai": "^4.0.15",
     "@ai-sdk/openai-compatible": "^3.0.11",
