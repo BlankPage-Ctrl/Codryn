@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Command } from 'commander';
 import { ConfigService, t, resolveDatabasePath } from '../../src/config/index.js';
+import { defaultShellForPlatform } from '../../src/shell/index.js';
 import { startServer } from '../server.js';
 import { startStdio } from '../stdio/index.js';
 import { registerCommands } from './commands/index.js';
@@ -21,7 +22,7 @@ const configShape = {
   },
   shell: {
     enabled: t.boolean().default(true),
-    shell: t.string().default('bash'),
+    shell: t.string().default(defaultShellForPlatform()),
     defaultTimeoutMs: t.number().default(30_000),
     maxOutputChars: t.number().default(25_000),
     defaultMode: t.enum(['allow', 'ask', 'deny']).default('ask'),
