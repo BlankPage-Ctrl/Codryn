@@ -36,7 +36,10 @@ test('resolveCodrynHome: always ~/.codryn regardless of env', () => {
 });
 
 test('resolveBackendBasePath: ~/.codryn/backend', () => {
-  assert.equal(resolveBackendBasePath({ home: '/home/u' }), join('/home/u', CODRYN_DIR_NAME, BACKEND_DIR_NAME));
+  assert.equal(
+    resolveBackendBasePath({ home: '/home/u' }),
+    join('/home/u', CODRYN_DIR_NAME, BACKEND_DIR_NAME),
+  );
   assert.equal(BACKEND_DIR_NAME, 'backend');
 });
 

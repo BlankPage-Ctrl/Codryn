@@ -26,10 +26,14 @@ async function setup() {
   );
   const messagesService = new MessagesService(repo);
   const runService = new RunsService(new RunsRepository(new RunHotStorage()));
-  return { messagesService, runService, cleanup: async () => {
-    await manager.close();
-    await rm(dir, { recursive: true, force: true });
-  } };
+  return {
+    messagesService,
+    runService,
+    cleanup: async () => {
+      await manager.close();
+      await rm(dir, { recursive: true, force: true });
+    },
+  };
 }
 
 test('cancel preserves partial parts + run steps (regression: Stop wiped DB via discard)', async () => {

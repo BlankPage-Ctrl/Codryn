@@ -25,10 +25,14 @@ async function setup() {
     new ColdRunStepsStorage(db as never),
   );
   const service = new MessagesService(repo);
-  return { service, repo, cleanup: async () => {
-    await manager.close();
-    await rm(dir, { recursive: true, force: true });
-  } };
+  return {
+    service,
+    repo,
+    cleanup: async () => {
+      await manager.close();
+      await rm(dir, { recursive: true, force: true });
+    },
+  };
 }
 
 const assistantMsg = (id: string) => ({
