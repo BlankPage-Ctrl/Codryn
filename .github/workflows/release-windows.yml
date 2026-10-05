@@ -1,0 +1,110 @@
+name: release-backend-windows
+
+# Backend release (Windows): make build-backend > build-fetch, then the
+# Windows E2E (scripts/e2e-backend-windows.ps1, mirror of the Linux-only
+# scripts/e2e-backend.sh), then zip the dist folder at medium compression
+# and upload to the tag Release.
+# VERSION comes from the release tag (leading "v" stripped); it must match
+# package.json or the run fails fast. See Makefile for the local equivalent.
+# NOTE: `make build-test` is intentionally NOT used here: its stage B calls
+# the Linux-only e2e-backend.sh. Stage A (typecheck + unit) runs as npm
+# steps below, stage B runs as the E2E step below.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to build (e.g. v1.2.3). No GitHub Release is created for manual runs.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install make
+        shell: pwsh
+        run: choco install make --no-progress -y
+
+      - name: Resolve version
+        shell: pwsh
+        run: |
+          $tag = "${{ inputs.tag }}"
+          if ([string]::IsNullOrEmpty($tag)) { $tag = $env:GITHUB_REF_NAME }
+          $ver = $tag -replace '^[vV]', ''
+          $pkgver = (node -p "require('./package.json').version").Trim()
+          if ($pkgver -ne $ver) { Write-Error "tag $tag resolves to $ver but package.json is $pkgver"; exit 1 }
+          Add-Content $env:GITHUB_ENV "VER=$ver"
+
+      - name: Install dependencies
+        shell: bash
+        run: npm ci
+
+      - name: Build backend
+        shell: bash
+        run: make build-backend OS=windows ARCH=amd64 VERSION="${VER}"
+
+      - name: Fetch sidecars
+        shell: bash
+        run: make build-fetch OS=windows ARCH=amd64 VERSION="${VER}"
+
+      - name: Typecheck
+        shell: bash
+        run: npm run typecheck
+
+      - name: Unit tests
+        shell: bash
+        run: npm test
+
+      - name: E2E (windows)
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/e2e-backend-windows.ps1 -OutDir "dist/build-$env:VER-windows-amd64"
+
+      - name: Package (zip, medium compression)
+        shell: pwsh
+        run: |
+          $sevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe'
+          if (-not (Test-Path $sevenZip)) { $sevenZip = '7z' }
+          Push-Location dist
+          & $sevenZip a -tzip -mx=5 "codryn-backend-$env:VER-windows-amd64.zip" "build-$env:VER-windows-amd64"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-FileHash *.zip -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } |
+            Out-File -FilePath SHA256SUMS-windows.txt -Encoding ascii
+          Pop-Location
+          Get-ChildItem dist
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS-windows.txt
+          fail_on_unmatched_files: true
+
+      - name: Upload artifacts (manual run)
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: codryn-backend-${{ env.VER }}-windows
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS-windows.txt

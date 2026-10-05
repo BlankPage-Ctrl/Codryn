@@ -11,10 +11,6 @@
 #      file search, insight status endpoint, provider list
 #   3. rg sidecar directly: rg --json finds a planted marker
 #   4. STDIO transport: list.workspace + read.file over JSON-RPC
-#
-# Notes:
-# - Comment style: plain ASCII only (repo rule).
-# - Needs: curl, node. Server boot waits up to BOOT_TIMEOUT_SECS.
 
 set -euo pipefail
 

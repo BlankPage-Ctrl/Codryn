@@ -1,0 +1,82 @@
+name: release-backend-linux
+
+# Backend release (Linux): make build-backend > build-fetch > build-test,
+# then zip the dist folder at medium compression and upload to the tag Release.
+# VERSION comes from the release tag (leading "v" stripped); it must match
+# package.json or the run fails fast. See Makefile for the local equivalent.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to build (e.g. v1.2.3). No GitHub Release is created for manual runs.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Resolve version
+        run: |
+          TAG="${{ inputs.tag }}"
+          if [ -z "$TAG" ]; then TAG="$GITHUB_REF_NAME"; fi
+          VER="${TAG#v}"; VER="${VER#V}"
+          PKGVER="$(node -p "require('./package.json').version")"
+          if [ "$PKGVER" != "$VER" ]; then echo "error: tag $TAG resolves to $VER but package.json is $PKGVER" >&2; exit 1; fi
+          echo "VER=$VER" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build backend
+        run: make build-backend OS=linux ARCH=amd64 VERSION="${VER}"
+
+      - name: Fetch sidecars
+        run: make build-fetch OS=linux ARCH=amd64 VERSION="${VER}"
+
+      - name: Test (typecheck + unit + e2e)
+        run: make build-test OS=linux ARCH=amd64 VERSION="${VER}"
+
+      - name: Package (zip, medium compression)
+        run: |
+          command -v zip >/dev/null || sudo apt-get install -y zip
+          cd dist
+          zip -6 -r "codryn-backend-${VER}-linux-amd64.zip" "build-${VER}-linux-amd64"
+          sha256sum *.zip > SHA256SUMS-linux.txt
+          ls -la
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS-linux.txt
+          fail_on_unmatched_files: true
+
+      - name: Upload artifacts (manual run)
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: codryn-backend-${{ env.VER }}-linux
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS-linux.txt
