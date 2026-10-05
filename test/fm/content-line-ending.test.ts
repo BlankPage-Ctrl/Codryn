@@ -42,7 +42,10 @@ test('content: numbered views never leak carriage returns', () => {
   assert.equal(formatWithLineNumbers('x\r\ny\r\n').includes('\r'), false);
   // Numbered content with CRLF transport still parses back cleanly.
   const back = parseLineNumberedContent('     1\ta\r\n     2\tb\r\n');
-  assert.deepEqual(back.map((l) => l.text), ['a', 'b']);
+  assert.deepEqual(
+    back.map((l) => l.text),
+    ['a', 'b'],
+  );
 });
 
 test('content: line-ending helpers', () => {
@@ -67,10 +70,7 @@ test('edit engine: LF search matches CRLF content and preserves CRLF', () => {
   const out = applyEditsAtomic(content, [{ search: 'line1\nline2', replace: 'changed' }]);
   assert.equal(out, 'changed\r\nline3\r\n');
   assert.ok(out.includes('\r\n'));
-  assert.equal(
-    out.split('\n').filter((l) => l.endsWith('\r') === false && l !== '').length,
-    0,
-  );
+  assert.equal(out.split('\n').filter((l) => l.endsWith('\r') === false && l !== '').length, 0);
 });
 
 test('edit engine: CRLF search also matches, LF files stay LF', () => {
@@ -102,9 +102,11 @@ test('read service: CRLF file has clean numbers and CRLF-preserving window', asy
   const full = requireOk(await read.readFile('crlf.txt'));
   assert.ok(!String(full.contentWithLineNumbers).includes('\r'));
 
-  const windowed = requireOk(
-    await read.readFile('crlf.txt', { startLine: 2, endLine: 3 }),
-  ) as { content: string; contentWithLineNumbers?: string; totalLines?: number };
+  const windowed = requireOk(await read.readFile('crlf.txt', { startLine: 2, endLine: 3 })) as {
+    content: string;
+    contentWithLineNumbers?: string;
+    totalLines?: number;
+  };
   assert.equal(windowed.totalLines, 3);
   assert.equal(windowed.content, 'two\r\nthree\r\n'.trimEnd());
   assert.ok(windowed.content.includes('\r\n'));

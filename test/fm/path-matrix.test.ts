@@ -55,7 +55,7 @@ test('isOutsideDisplayPath: always posix-style', () => {
   assert.equal(isOutsideDisplayPath('/'), false);
   assert.equal(isOutsideDisplayPath('a/b'), false);
   assert.equal(isOutsideDisplayPath('..'), true);
-  assert.equal(isOutsideDisplayPath('../x', ), true);
+  assert.equal(isOutsideDisplayPath('../x'), true);
   assert.equal(isOutsideDisplayPath('..foo'), false);
   assert.equal(isOutsideDisplayPath('..foo/bar'), false);
 });
