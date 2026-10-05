@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/appicon2.png" width="196" alt="Codryn icon">
+  <img src="images/applogo.webp" width="196" alt="Codryn icon">
 </p>
 <h1 align="center"><strong>Codryn</strong></h1>
 <h4 align="center">
