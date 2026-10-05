@@ -126,6 +126,10 @@ test('edit service: LF edit on CRLF file keeps CRLF on disk', async (t) => {
   assert.ok(raw.includes('\r\n'));
   assert.equal(raw, 'ALPHA\r\ngamma\r\n');
   if (result.success) {
-    assert.equal(result.data.diff.includes('\r'), false);
+    const diff = result.data.diff;
+    if (typeof diff !== 'string') {
+      assert.fail('expected a diff string in successful edit result');
+    }
+    assert.equal(diff.includes('\r'), false);
   }
 });
