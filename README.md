@@ -42,6 +42,20 @@ This is the backend/server component of the Codryn application. Since this is st
 
 MCP servers connect over stdio or HTTP (WebSocket is not supported). Their tools show up as agent tools and every call waits for your approval; if a server fails, the chat simply continues without it. Content is text only for now, so images and other non-text blocks are left out of model context. Resources and prompts are listed but never auto-injected, and the model never invokes prompts on its own.
 
+> [!NOTE]
+> For the MCP configuration, Codryn will attempt to read the `.mcp.json` file located in your project workspace root.
+
+### Insight(Code Indexing)
+
+When you use Insight to explore your code, Insight asks SrcInsight to read your project and find how functions and types are connected. The results you see in Insight come from this engine.
+
+In terms of features, Agentic AI can request 'Insights' to search, trace (explore), or map out function graphs, so enabling this capability can be highly beneficial for the AI.
+
+As a user, you can index your project, and there is no need to repeatedly press the index button; SrcInsight updates your project code incrementally.
+
+> [!NOTE]
+> Language support is limited to TypeScript, Python, and Golang. See [SrcInsight](srcinsight/README.md) for more details.
+
 ### Configuration
 
 To tweak the config, edit `config.toml` inside `~/.codryn/backend` folder, or point elsewhere with `codryn --config <path>` and `--data-dir <dir>`. Env vars like `TRANSPORT` and `PORT`, or flags like `--port`, override the file.

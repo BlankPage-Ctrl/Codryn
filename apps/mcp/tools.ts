@@ -71,7 +71,8 @@ export function createMcpTools(
     seen.add(name);
     const inputSchema = jsonSchemaToZod(def.inputSchema) as z.ZodTypeAny;
     const annotations = def.annotations as
-      { readOnlyHint?: boolean; destructiveHint?: boolean } | undefined;
+      | { readOnlyHint?: boolean; destructiveHint?: boolean }
+      | undefined;
     const readOnly = annotations?.readOnlyHint === true;
     const destructive = annotations?.destructiveHint === true;
     const tool: AgentTool = {
