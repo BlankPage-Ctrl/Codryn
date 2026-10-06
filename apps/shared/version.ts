@@ -4,13 +4,22 @@
 //   1. CODRYN_VERSION env — set by CI from the GitHub Release tag
 //      (GITHUB_REF_NAME, e.g. "v1.2.3"). The leading "v" is stripped.
 //   2. APP_VERSION env — generic alternative for custom deployments.
-//   3. packages/backend/package.json "version" — local dev and npm runs.
-//   4. Dev fallback "0.0.0-dev" with the short commit sha when available
+//   3. Baked compile-time version (__CODRYN_VERSION__) — injected by
+//      `make build-backend VERSION=x.y.z` via `bun build --define`.
+//      This is what `codryn --version` reports for release binaries,
+//      which have no package.json next to them.
+//   4. packages/backend/package.json "version" — local dev and npm runs.
+//   5. Dev fallback "0.0.0-dev" with the short commit sha when available
 //      (GITHUB_SHA / GIT_SHA), e.g. "0.0.0-dev+abc1234".
 //
 // The backend binary is spawned without a .git directory in production,
 // so the version is resolved from the environment, never via `git describe`
 // at runtime.
+//
+// NOTE: do NOT bake with `--define process.env.CODRYN_VERSION=...`.
+// That form hardcodes the value and kills runtime overrides. The dedicated
+// __CODRYN_VERSION__ constant keeps `CODRYN_VERSION`/`APP_VERSION` env
+// overrides working (env still wins over the baked value).
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +27,22 @@ import { fileURLToPath } from 'node:url';
 export const BACKEND_NAME = 'codryn' as const;
 
 export const DEV_VERSION = '0.0.0-dev' as const;
+
+// Compile-time injected version (see Makefile build-backend).
+// `typeof __CODRYN_VERSION__ !== 'undefined'` is safe even when bun
+// did not define it (tsx dev, tsc builds, unit tests).
+declare const __CODRYN_VERSION__: string | undefined;
+
+function readBakedVersion(): string | null {
+  try {
+    if (typeof __CODRYN_VERSION__ === 'string') {
+      return normalizeTag(__CODRYN_VERSION__);
+    }
+  } catch {
+    // ReferenceError in environments without the define; fall through.
+  }
+  return null;
+}
 
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
 
@@ -92,6 +117,7 @@ export function resetVersionCacheForTest(): void {
 export function getVersion(env: NodeJS.ProcessEnv = process.env): string {
   return resolveVersion({
     tag: normalizeTag(env.CODRYN_VERSION) ?? normalizeTag(env.APP_VERSION),
+    baked: readBakedVersion(),
     packageJson: readPackageJsonVersion(),
     sha: resolveSha(env),
   });
@@ -103,10 +129,12 @@ export function getVersion(env: NodeJS.ProcessEnv = process.env): string {
  */
 export function resolveVersion(input: {
   tag: string | null;
+  baked?: string | null;
   packageJson: string | null;
   sha: string | null;
 }): string {
   if (input.tag !== null) return input.tag;
+  if (input.baked !== null && input.baked !== undefined) return input.baked;
   if (input.packageJson !== null) return input.packageJson;
   if (input.sha !== null) return `${DEV_VERSION}+${input.sha}`;
   return DEV_VERSION;
