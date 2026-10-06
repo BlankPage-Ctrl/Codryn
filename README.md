@@ -16,10 +16,13 @@
 ```bash
 powershell -c "irm https://raw.githubusercontent.com/BlankPage-Ctrl/Codryn/master/installs/install.ps1 | iex"
 ```
+
 **Linux(debian/ubuntu)**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/BlankPage-Ctrl/Codryn/master/installs/install.sh | bash
 ```
+
 > [!WARNING]
 > The installation above includes the Desktop Client.
 
