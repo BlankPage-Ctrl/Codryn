@@ -2,14 +2,17 @@
   "name": "@codryn/backend",
   "version": "0.0.1",
   "description": "Codryn backend (Fastify + SQLite + Drizzle).",
-  "main": "dist/index.js",
+  "keywords": [],
+  "license": "MIT",
+  "author": "",
   "bin": {
     "app": "apps/index.ts"
   },
-  "type": "module",
   "directories": {
     "test": "test"
   },
+  "type": "module",
+  "main": "dist/index.js",
   "scripts": {
     "test": "npm run build:ts && tsc -p test/tsconfig.json && c8 tsx --test \"test/**/*.ts\"",
     "start": "npm run build:ts && node dist/index.js",
@@ -20,16 +23,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:pull": "drizzle-kit pull",
     "db:generate": "drizzle-kit generate"
   },
-  "keywords": [],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "@ai-sdk/openai": "^4.0.15",
     "@ai-sdk/openai-compatible": "^3.0.11",
@@ -72,7 +72,7 @@
     "eslint": "^10.7.0",
     "fastify-tsconfig": "^3.0.0",
     "jiti": "^2.7.0",
-    "prettier": "^3.9.9",
+    "oxfmt": "^0.45.0",
     "ts-node": "^10.4.0",
     "tsx": "^4.23.15",
     "typescript": "~5.9.2",

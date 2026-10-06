@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": true,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 100,
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    "coverage/",
+    "data.db",
+    "data.db-shm",
+    "data.db-wal",
+    "logs/",
+    "attachments/",
+    ".attachments/",
+    "smoke-data/",
+    "srcinsight/",
+    "drizzle/",
+    "*.log",
+    "config.toml"
+  ]
+}

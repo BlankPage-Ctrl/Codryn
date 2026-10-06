@@ -51,7 +51,10 @@ export type LeafCondition =
   | { field: SettingsField; $ne: string | number };
 
 export type Condition =
-  LeafCondition | { $and: Condition[] } | { $or: Condition[] } | { $not: Condition };
+  | LeafCondition
+  | { $and: Condition[] }
+  | { $or: Condition[] }
+  | { $not: Condition };
 
 export interface SettingsQuery {
   where?: Condition;
