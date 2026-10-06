@@ -30,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/BlankPage-Ctrl/Codryn/master/instal
 
 ## About
 
-This is the backend/server component of the Codryn application. Since this is still in the **Beta** stage, certain features and support have been scaled back, ,any things and features are not wired at all.; however, you can contribute to expanding that support—whether by submitting **Issues** to report bugs, performance problems, or other matters.
+This is the backend/server component of the Codryn application. Since this is still in the **Beta** stage, certain features and support have been scaled back, many things and features are not wired at all.; however, you can contribute to expanding that support—whether by submitting **Issues** to report bugs, performance problems, or other matters.
 
 ### Agents
 
