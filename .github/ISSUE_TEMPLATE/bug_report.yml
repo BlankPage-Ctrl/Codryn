@@ -53,7 +53,7 @@ body:
     id: logs
     attributes:
       label: Relevant logs
-      description: Paste the relevant part of logs/app.log. Never paste secrets or tokens.
+      description: Paste the relevant part of ~/.codryn/backend/logs/app.log. Never paste secrets or tokens.
       render: text
   - type: upload
     id: proof
