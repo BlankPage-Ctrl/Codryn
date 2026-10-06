@@ -54,6 +54,21 @@ test('resolveVersion: tag beats package.json beats sha fallback', () => {
   assert.equal(resolveVersion({ tag: null, packageJson: null, sha: null }), DEV_VERSION);
 });
 
+test('resolveVersion: tag beats baked beats package.json', () => {
+  assert.equal(
+    resolveVersion({ tag: '1.2.3', baked: '2.0.0', packageJson: '9.9.9', sha: null }),
+    '1.2.3',
+  );
+  assert.equal(
+    resolveVersion({ tag: null, baked: '2.0.0', packageJson: '9.9.9', sha: null }),
+    '2.0.0',
+  );
+  assert.equal(
+    resolveVersion({ tag: null, baked: null, packageJson: '9.9.9', sha: null }),
+    '9.9.9',
+  );
+});
+
 test('getVersionInfo: reports name, version, sha, and raw tag', () => {
   resetVersionCacheForTest();
   const info = getVersionInfo({ CODRYN_VERSION: 'v1.4.0', GITHUB_SHA: 'deadbee1234' });
