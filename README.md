@@ -25,12 +25,17 @@ curl -fsSL https://raw.githubusercontent.com/BlankPage-Ctrl/Codryn/master/instal
 
 **After installation, see [Get Started](https://github.com/BlankPage-Ctrl/Codryn-Desktop/blob/master/docs/getting-started.md#open-codryn).**
 
-> [!WARNING]
+> [!IMPORTANT]
 > The installation above includes the Desktop Client.
 
 ## About
 
-This is the backend/server component of the Codryn application. Since this is still in the **Beta** stage, certain features and support have been scaled back, many things and features are not wired at all.; however, you can contribute to expanding that support—whether by submitting **Issues** to report bugs, performance problems, or other matters.
+Codryn is a tool that allows you to use AI to help you write code. It can read your code, understand it, and provide suggestions, explanations, and even generate new code based on your existing codebase.
+
+If you come across a bug, performance issue, missing feature, or anything that could be improved, feel free to open an **Issue** and let us know. Your feedback and contributions can help us expand support and make Codryn better!
+
+> [!NOTE]
+> This is the backend/server component of the Codryn application. Since Codryn is still in **Beta**, some features and support are still being developed.
 
 ### Agents
 
@@ -65,7 +70,7 @@ To tweak the config, edit `config.toml` inside `~/.codryn/backend` folder, or po
 
 ## Known limits
 
-- Beta: install and some flows are glitchy.
+- Early stage, but development is ongoing.
 - Only linux/windows amd64 are built and tested.
 - OpenAI provider path has not been tested end to end yet.
 

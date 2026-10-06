@@ -215,6 +215,21 @@ try {
   if ($help -notmatch 'codryn') { Fail "'$script:Bin --help' did not mention codryn" }
   Pass 'backend binary --help works'
 
+  $pkgVer = (node -p "require('./package.json').version").Trim()
+  $savedCodryn = (Get-Item 'Env:CODRYN_VERSION' -ErrorAction SilentlyContinue).Value
+  $savedApp = (Get-Item 'Env:APP_VERSION' -ErrorAction SilentlyContinue).Value
+  Remove-Item Env:CODRYN_VERSION -ErrorAction SilentlyContinue
+  Remove-Item Env:APP_VERSION -ErrorAction SilentlyContinue
+  try { $binVersion = (& $script:Bin --version 2>&1 | Out-String).Trim() }
+  finally {
+    if ($null -ne $savedCodryn) { $env:CODRYN_VERSION = $savedCodryn }
+    if ($null -ne $savedApp) { $env:APP_VERSION = $savedApp }
+  }
+  if ([string]::IsNullOrWhiteSpace($binVersion)) { Fail "'$script:Bin --version' printed nothing (want $pkgVer)" }
+  if ($binVersion -notmatch [regex]::Escape($pkgVer)) { Fail "'$script:Bin --version' reported '$binVersion' but package.json is '$pkgVer' (baked version missing?)" }
+  if ($binVersion -match '0\.0\.0-dev') { Fail "'$script:Bin --version' reported dev fallback '$binVersion' (want $pkgVer)" }
+  Pass "backend binary --version reports $binVersion"
+
   New-Item -ItemType Directory -Force -Path $TmpBase | Out-Null
 
   # --- 1. auth negative ----------------------------------------------------

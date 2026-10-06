@@ -80,7 +80,7 @@ build-backend:
 	fi
 	mkdir -p "$(OUTDIR)"
 	echo "==> bun compile $(ENTRY) -> $(OUTDIR)/$(BINNAME) (OS=$(OS) ARCH=$(ARCH) VERSION=$(VERSION))"
-	bun build --compile --define 'process.env.CODRYN_RELEASE_BUILD="1"' "$(ENTRY)" --outfile "$(OUTDIR)/$(BINNAME)"
+	bun build --compile --define 'process.env.CODRYN_RELEASE_BUILD="1"' --define '__CODRYN_VERSION__="$(VERSION)"' "$(ENTRY)" --outfile "$(OUTDIR)/$(BINNAME)"
 	if [ "$(OS)" != "windows" ]; then chmod +x "$(OUTDIR)/$(BINNAME)"; fi
 	# The compiled binary cannot see drizzle/ through its $bunfs path, and
 	# resolveMigrationsFolder() looks next to the executable. Stage the

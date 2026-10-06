@@ -105,6 +105,16 @@ pass "rg binary reports a version ($RG_FILE_VERSION)"
   || fail "'$BIN --help' did not mention codryn"
 pass "backend binary --help works"
 
+PKGVER="$(node -p "require('./package.json').version")"
+BIN_VERSION="$(env -u CODRYN_VERSION -u APP_VERSION "$BIN" --version 2>&1 | tr -d '[:space:]')"
+[ -n "$BIN_VERSION" ] || fail "'$BIN --version' printed nothing (want $PKGVER)"
+echo "$BIN_VERSION" | grep -Fq "$PKGVER" \
+  || fail "'$BIN --version' reported '$BIN_VERSION' but package.json is '$PKGVER' (baked version missing?)"
+if echo "$BIN_VERSION" | grep -Fq '0.0.0-dev'; then
+  fail "'$BIN --version' reported dev fallback '$BIN_VERSION' (want $PKGVER)"
+fi
+pass "backend binary --version reports $BIN_VERSION"
+
 TMPBASE="$(mktemp -d)"
 SERVER_PID=""
 cleanup() {
