@@ -5,7 +5,8 @@ import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import PQueue from 'p-queue';
 
 export type Database =
-  BetterSQLite3Database<Record<string, unknown>> | BunSQLiteDatabase<Record<string, unknown>>;
+  | BetterSQLite3Database<Record<string, unknown>>
+  | BunSQLiteDatabase<Record<string, unknown>>;
 
 export function isBunRuntime(): boolean {
   return typeof (globalThis as Record<string, unknown>).Bun !== 'undefined';
