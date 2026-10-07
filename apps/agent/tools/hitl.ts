@@ -30,17 +30,64 @@ const choiceOptionInputSchema = z.union([
       id: z.string().trim().min(1).max(120),
       title: z.string().trim().min(1).max(200),
       description: z.string().trim().max(2_000).optional(),
-      recommended: z.boolean().optional(),
-      allowCustomInput: z.boolean().optional().describe('Allow custom text input for this option'),
+      recommended: z.preprocess(coerceBooleanish, z.boolean().optional()),
+      allowCustomInput: z
+        .preprocess(coerceBooleanish, z.boolean().optional())
+        .describe('Allow custom text input for this option'),
     })
     .strict(),
 ]);
+
+// Some models serialize array tool params as a single-key wrapper object
+// (e.g. {item: [...]} or nested {item: {item: [...]}}) instead of a bare
+// array. Unwrap that shape before validation so the call can proceed;
+// anything else passes through untouched for zod to report normally.
+const ARRAY_WRAPPER_KEYS = ['item', 'items', 'options', 'value', 'array'] as const;
+
+function unwrapArrayish(value: unknown, depth = 0): unknown {
+  if (Array.isArray(value) || depth >= 3) return value;
+  if (typeof value !== 'object' || value === null) return value;
+  const keys = Object.keys(value);
+  if (keys.length !== 1) return value;
+  const key = keys[0].toLowerCase();
+  if (!(ARRAY_WRAPPER_KEYS as readonly string[]).includes(key)) return value;
+  return unwrapArrayish((value as Record<string, unknown>)[keys[0]], depth + 1);
+}
+
+// Some models serialize booleans and ints as strings (e.g. recommended:
+// "true", timeoutMs: "600000"). Coerce the obvious shapes before validation;
+// anything else passes through untouched for zod to report normally.
+function coerceBooleanish(value: unknown): unknown {
+  if (typeof value === 'string') {
+    const s = value.trim().toLowerCase();
+    if (s === 'true') return true;
+    if (s === 'false') return false;
+  }
+  return value;
+}
+
+function coerceNumberish(value: unknown): unknown {
+  if (typeof value === 'string') {
+    const s = value.trim();
+    if (/^-?\d+$/.test(s)) {
+      const n = Number(s);
+      if (Number.isSafeInteger(n)) return n;
+    }
+  }
+  return value;
+}
+
+const timeoutMsSchema = z
+  .preprocess(coerceNumberish, z.number().int().positive().max(3_600_000).optional())
+  .describe('Wait timeout in ms');
 
 const approvalKindSchema = z.object({
   kind: z.literal('approval').describe('Ask human to approve/reject an action'),
   title: z.string().trim().min(1).max(MAX_TITLE).describe('Short title shown in the HITL card'),
   description: z.string().trim().max(MAX_DESC).optional().describe('Context shown under the title'),
-  requireReasonOnReject: z.boolean().optional().describe('Require a reason when rejecting'),
+  requireReasonOnReject: z
+    .preprocess(coerceBooleanish, z.boolean().optional())
+    .describe('Require a reason when rejecting'),
   modificationInitialValue: z
     .string()
     .max(5_000)
@@ -49,7 +96,7 @@ const approvalKindSchema = z.object({
   modificationLabel: z.string().trim().max(100).optional(),
   modificationPlaceholder: z.string().trim().max(200).optional(),
   contextPreview: z.unknown().optional().describe('Preview data shown to the human'),
-  timeoutMs: z.number().int().positive().max(3_600_000).optional().describe('Wait timeout in ms'),
+  timeoutMs: timeoutMsSchema,
   metadata: z
     .record(z.string().trim().min(1).max(120), z.union([z.string(), z.number(), z.boolean()]))
     .optional(),
@@ -61,9 +108,9 @@ const askKindSchema = z.object({
   description: z.string().trim().max(MAX_DESC).optional().describe('Details for the question'),
   placeholder: z.string().trim().max(200).optional(),
   validationRegex: z.string().trim().max(500).optional().describe('JS regex the answer must match'),
-  minLength: z.number().int().min(0).max(100_000).optional(),
-  maxLength: z.number().int().min(1).max(100_000).optional(),
-  timeoutMs: z.number().int().positive().max(3_600_000).optional(),
+  minLength: z.preprocess(coerceNumberish, z.number().int().min(0).max(100_000).optional()),
+  maxLength: z.preprocess(coerceNumberish, z.number().int().min(1).max(100_000).optional()),
+  timeoutMs: timeoutMsSchema,
   metadata: z
     .record(z.string().trim().min(1).max(120), z.union([z.string(), z.number(), z.boolean()]))
     .optional(),
@@ -78,19 +125,17 @@ const choiceKindSchema = z.object({
     .default('single')
     .describe('single, multi, or ranked picks'),
   options: z
-    .array(choiceOptionInputSchema)
-    .min(1)
-    .max(20)
+    .preprocess((v) => unwrapArrayish(v), z.array(choiceOptionInputSchema).min(1).max(20))
     .describe('Options; plain strings auto-convert to {id,title}'),
   defaultSelection: z
-    .array(z.string().trim().min(1))
-    .max(100)
-    .optional()
+    .preprocess((v) => unwrapArrayish(v), z.array(z.string().trim().min(1)).max(100).optional())
     .describe('Pre-selected option ids'),
-  minSelect: z.number().int().min(1).max(100).optional(),
-  maxSelect: z.number().int().min(1).max(100).optional(),
-  allowOther: z.boolean().optional().describe('Allow a custom value beyond the options'),
-  timeoutMs: z.number().int().positive().max(3_600_000).optional(),
+  minSelect: z.preprocess(coerceNumberish, z.number().int().min(1).max(100).optional()),
+  maxSelect: z.preprocess(coerceNumberish, z.number().int().min(1).max(100).optional()),
+  allowOther: z
+    .preprocess(coerceBooleanish, z.boolean().optional())
+    .describe('Allow a custom value beyond the options'),
+  timeoutMs: timeoutMsSchema,
   metadata: z
     .record(z.string().trim().min(1).max(120), z.union([z.string(), z.number(), z.boolean()]))
     .optional(),
