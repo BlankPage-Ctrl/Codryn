@@ -101,7 +101,14 @@ export async function startMessageRun(
       params.chatId,
     );
   }
-  await attachMentionPart(ctx, context, params.message.id, workspace.projectPath, userText);
+  await attachMentionPart(
+    ctx,
+    context,
+    params.message.id,
+    workspace.projectPath,
+    userText,
+    params.workspaceId,
+  );
 
   const persistMessage: UIMessage = context.getMessage(params.message.id)!;
   const assistantMessageId = messageIdGen();
