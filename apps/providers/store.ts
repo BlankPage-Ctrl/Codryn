@@ -276,8 +276,8 @@ export class ProviderStore {
       modelId: parsed.data.modelId,
       displayName: parsed.data.displayName ?? null,
       providerId: parsed.data.providerId,
-      maxInputTokens: parsed.data.maxInputTokens ?? null,
-      maxOutputTokens: parsed.data.maxOutputTokens ?? null,
+      maxInputTokens: parsed.data.maxInputTokens,
+      maxOutputTokens: parsed.data.maxOutputTokens,
       createdAt: new Date(now),
       updatedAt: new Date(now),
     };
