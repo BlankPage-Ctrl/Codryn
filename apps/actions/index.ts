@@ -22,6 +22,7 @@ export { listMessageRuns } from './list.message-run.js';
 export { cancelMessageRun } from './cancel.message-run.js';
 
 export { generateTitle } from './generate.title.js';
+export { generateChatTitle } from './generate.chat-title.js';
 export { autocorrect } from './autocorrect.js';
 
 export { getSetting } from './get.setting.js';

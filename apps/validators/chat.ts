@@ -13,7 +13,7 @@ export const ChatModeSchema = z.enum(['ask', 'plan', 'edit']);
 
 export const CreateChatSchema = z
   .object({
-    title: z.string().trim().min(1).max(200).optional(),
+    title: z.string().trim().max(200).optional(),
     systemPrompt: z.string().max(10_000).optional(),
     modelId: z.string().min(1).optional(),
     providerId: z.string().min(1).optional(),
@@ -47,4 +47,16 @@ export function validateCreateChat(body: unknown) {
 
 export function validateUpdateChat(body: unknown) {
   return UpdateChatSchema.parse(body);
+}
+
+export const GenerateChatTitleSchema = z
+  .object({
+    text: z.string().trim().min(1).max(2000),
+    providerId: z.string().min(1).optional(),
+    modelId: z.string().min(1).optional(),
+  })
+  .strict();
+
+export function validateGenerateChatTitle(body: unknown) {
+  return GenerateChatTitleSchema.parse(body);
 }
