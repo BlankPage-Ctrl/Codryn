@@ -53,6 +53,7 @@ export {
 } from './shell.js';
 
 export { validateHitlId, validateHitlRequest, validateHitlResponse } from './hitl.js';
+export { validatePluginGet, validatePluginSetEnabled, validatePluginWorkspace } from './plugin.js';
 export {
   expandEnvVars,
   normalizeServerDef,

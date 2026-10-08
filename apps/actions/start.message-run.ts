@@ -28,6 +28,7 @@ import {
   toProjectSkillPort,
   type SkillSources,
 } from '../skills/index.js';
+import { buildPluginBootstrap, collectHookRules, loadPluginStates } from '../plugins/index.js';
 import { buildFmServices } from '../shared/fm-services.js';
 import { buildShellConsumer } from '../shared/shell-consumer.js';
 import {
@@ -66,9 +67,21 @@ export async function startMessageRun(
   if (!chat) throw new NotFoundError(`Chat ${params.chatId} not found`);
 
   const workspace = await ctx.workspacesService.findOne(params.workspaceId);
+  const pluginLoad = ctx.pluginsEnabled
+    ? await loadPluginStates(
+        workspace.projectPath,
+        params.workspaceId,
+        ctx.settingsService,
+        ctx.logger,
+        ctx.pluginLimits,
+      )
+    : { states: [], skills: [] };
+  const pluginBootstrap = buildPluginBootstrap(pluginLoad.states);
+  const pluginHookRules = collectHookRules(pluginLoad.states);
   const skillSources: SkillSources = {
     globalRoot: resolveGlobalRoot(),
     project: toProjectSkillPort(ctx.fileRepo, projectSkillDir(workspace.projectPath)),
+    ...(pluginLoad.skills.length > 0 ? { pluginSkills: pluginLoad.skills } : {}),
   };
   const skills = await loadSkillsForWorkspace(skillSources, ctx.logger);
 
@@ -247,6 +260,7 @@ export async function startMessageRun(
               skills,
               projectPath: workspace.projectPath,
               insightEnabled,
+              ...(pluginBootstrap ? { pluginBootstrap } : {}),
             }),
             messages,
             tools: buildToolset(
@@ -267,6 +281,7 @@ export async function startMessageRun(
                 mcpTools,
                 onRichResult: handleRich,
                 logger: ctx.logger,
+                pluginHookRules,
               }),
             ),
             thinkingLevel,

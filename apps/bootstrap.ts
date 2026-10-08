@@ -58,9 +58,14 @@ import { SettingsService } from '../src/settings/index.js';
 import { WorkspacesService } from '../src/workspaces/index.js';
 import { MessagesService } from '../src/messages/index.js';
 import { NotesService, CategoriesService } from '../src/notes/index.js';
-import type { Logger } from './shared/types.js';
+import type { Logger, PluginServerConfig } from './shared/types.js';
 import { fallbackLogger } from './shared/logging/fallback.js';
 import { DEFAULT_MCP_CONFIG, McpManager, type McpManagerConfig } from './mcp/manager.js';
+import {
+  DEFAULT_PLUGIN_CONFIG,
+  toPluginLimits,
+  type PluginGlobalLimits,
+} from './plugins/config.js';
 
 export interface Container {
   clientService: ClientService;
@@ -83,6 +88,8 @@ export interface Container {
   hitlService: HitlService;
   runService: RunsService;
   mcpManager: McpManager;
+  pluginsEnabled: boolean;
+  pluginLimits: PluginGlobalLimits;
   logger: Logger;
   shutdown: () => Promise<void>;
 }
@@ -94,6 +101,7 @@ export interface BootstrapConfig {
   defaultClientSecretKey: string;
   shell?: BootstrapShellConfig;
   mcp?: Partial<McpManagerConfig>;
+  plugins?: Partial<PluginServerConfig>;
 }
 
 export async function bootstrap(
@@ -196,6 +204,9 @@ export async function bootstrap(
     setValue: (key, value) => settingsService.setValue(key, value),
   });
 
+  // # Plugins (unofficial, default off; management + run paths gate on it).
+  const pluginConfig = { ...DEFAULT_PLUGIN_CONFIG, ...config.plugins };
+
   return {
     clientService,
     chatService,
@@ -221,6 +232,8 @@ export async function bootstrap(
     hitlService,
     runService,
     mcpManager,
+    pluginsEnabled: pluginConfig.enabled,
+    pluginLimits: toPluginLimits(pluginConfig),
     logger,
     shutdown: async () => {
       try {

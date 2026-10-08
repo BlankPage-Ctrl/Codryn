@@ -4,12 +4,15 @@ import path from 'node:path';
  * carrying at least `name:` and `description:`), plus optional sibling
  * resources (`scripts/`, `references/`, ...).
  *
- * Two sources only:
+ * Three sources:
  * - Global `~/.agents/skills` - scanned with plain `node:fs` (outside any
  *   workspace containment, so `fm-services` cannot reach it).
  * - Project `<projectPath>/.agents/skills` - scanned ONLY through
  *   `fm-services` scoped to the skill dir, so containment is a security
  *   guarantee: skill paths can never escape the skill root.
+ * - Plugin skills - external plugin dirs, passed in via
+ *   `SkillSources.pluginSkills` after the Layer 3 guard approves them.
+ *   They parse through the same `SKILL.md` path (Agent Skills standard).
  *
  * Only the menu (name + one-line description) is injected into the agent's
  * system prompt. Full content is lazy-loaded through the `skill` agent tool.

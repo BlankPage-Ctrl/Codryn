@@ -13,6 +13,7 @@ import { registerShellRoutes } from './shell.js';
 import { registerHitlRoutes } from './hitl.js';
 import { registerInsightRoutes } from './insight.js';
 import { registerMcpRoutes } from './mcp.js';
+import { registerPluginRoutes } from './plugin.js';
 import { registerVersionRoutes } from './version.js';
 
 export function registerRoutes(app: FastifyInstance, ctx: Container) {
@@ -30,4 +31,5 @@ export function registerRoutes(app: FastifyInstance, ctx: Container) {
   registerHitlRoutes(app, ctx);
   registerInsightRoutes(app, ctx);
   registerMcpRoutes(app, ctx);
+  registerPluginRoutes(app, ctx);
 }

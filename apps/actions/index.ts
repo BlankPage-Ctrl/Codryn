@@ -80,5 +80,9 @@ export { watchHitl } from './watch.hitl.js';
 export { listMcpServers } from './list.mcp-server.js';
 export { setMcpServerEnabled } from './set.mcp-server.js';
 
+export { listPlugins } from './list.plugin.js';
+export { getPlugin } from './get.plugin.js';
+export { setPluginEnabled } from './set.plugin.js';
+
 export { uploadAttachment } from './upload.attachment.js';
 export { getAttachment } from './get.attachment.js';

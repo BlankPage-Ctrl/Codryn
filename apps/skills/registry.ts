@@ -12,10 +12,11 @@ import type { ProjectSkillPort, SkillLogger, SkillMeta } from './types.js';
  * - Global `~/.agents/skills` (plain `node:fs`).
  * - Builtin `apps/skills/builtin` (shipped with the repo, hardcoded).
  * - Project `<project>/.agents/skills` (via `fm-services` port).
+ * - Plugin skills (external plugin dirs, passed in via `SkillSources`).
  *
- * On duplicate names the PROJECT skill wins, then BUILTIN, then global:
- * disk-local overrides beat shipped defaults, shipped defaults beat user
- * globals. There is no DB table and no file watcher. Freshness comes from
+ * On duplicate names the PROJECT skill wins, then PLUGIN, then BUILTIN,
+ * then global: disk-local overrides beat installed plugins, installed
+ * plugins beat shipped defaults, shipped defaults beat user globals. There is no DB table and no file watcher. Freshness comes from
  * revalidating at the two points the agent actually needs skills:
  * (a) `start.message-run` before building the system prompt,
  * (b) every `skill` tool `execute()` before lookup - which re-reads the
@@ -28,9 +29,14 @@ const CACHE_TTL_MS = 15_000;
 export interface SkillSources {
   globalRoot: string;
   project: ProjectSkillPort | null;
+  pluginSkills?: SkillMeta[];
 }
 
-type Origin = { kind: 'global' } | { kind: 'builtin' } | { kind: 'project'; rel: string };
+type Origin =
+  | { kind: 'global' }
+  | { kind: 'builtin' }
+  | { kind: 'plugin' }
+  | { kind: 'project'; rel: string };
 
 interface CacheEntry {
   key: string;
@@ -44,7 +50,16 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 
 export function skillCacheKey(sources: SkillSources): string {
-  return `${sources.globalRoot}::${sources.project?.root ?? '-'}`;
+  return `${sources.globalRoot}::${sources.project?.root ?? '-'}::${pluginSignature(sources)}`;
+}
+
+/** Stable fingerprint of the plugin skill set (names + locations). */
+function pluginSignature(sources: SkillSources): string {
+  const list = sources.pluginSkills ?? [];
+  return list
+    .map((s) => `${s.name}@${s.location}`)
+    .sort()
+    .join(',');
 }
 
 function snapshotEqual(
@@ -76,8 +91,9 @@ async function scanAndIndex(sources: SkillSources, logger?: SkillLogger): Promis
     (s): s is SkillMeta & { content: string } => s != null,
   );
 
-  // Global first, builtin second, project last -> project wins over
-  // builtin, builtin wins over global on duplicate names.
+  // Global first, builtin second, plugin third, project last -> project
+  // wins over plugin, plugin wins over builtin, builtin wins over global
+  // on duplicate names.
   const byName = new Map<string, { meta: SkillMeta; origin: Origin }>();
   for (const skill of globalSkills) {
     byName.set(skill.name, {
@@ -105,6 +121,23 @@ async function scanAndIndex(sources: SkillSources, logger?: SkillLogger): Promis
         directory: skill.directory,
       },
       origin: { kind: 'builtin' },
+    });
+  }
+  for (const skill of sources.pluginSkills ?? []) {
+    if (byName.has(skill.name)) {
+      logger?.warn(
+        { name: skill.name, location: skill.location },
+        'duplicate skill name — plugin skill overrides builtin/global',
+      );
+    }
+    byName.set(skill.name, {
+      meta: {
+        name: skill.name,
+        description: skill.description,
+        location: skill.location,
+        directory: skill.directory,
+      },
+      origin: { kind: 'plugin' },
     });
   }
   for (const skill of projectSkills) {
@@ -145,16 +178,17 @@ async function scanAndIndex(sources: SkillSources, logger?: SkillLogger): Promis
     origins.set(name, v.origin);
   }
   // Project skills first (workspace-local overrides are the most
-  // relevant), then builtin defaults, then globals - alphabetical within
-  // each origin. This single ordering feeds both the system-prompt menu
-  // and the `skill_list` tool, so the two can never disagree about
-  // "first N".
+  // relevant), then plugin skills, then builtin defaults, then globals -
+  // alphabetical within each origin. This single ordering feeds both the
+  // system-prompt menu and the `skill_list` tool, so the two can never
+  // disagree about "first N".
   skills.sort((a, b) => {
     const rank = (name: string): number => {
       const kind = origins.get(name)?.kind;
       if (kind === 'project') return 0;
-      if (kind === 'builtin') return 1;
-      return 2;
+      if (kind === 'plugin') return 1;
+      if (kind === 'builtin') return 2;
+      return 3;
     };
     const pa = rank(a.name);
     const pb = rank(b.name);
@@ -224,8 +258,8 @@ async function readFreshBody(
   if (origin.kind === 'project' && sources.project) {
     return sources.project.readFile(origin.rel).catch(() => null);
   }
-  // Global and builtin skills live at absolute paths outside any workspace
-  // containment, so plain `node:fs` re-reads are safe here.
+  // Global, builtin, and plugin skills live at absolute paths outside any
+  // workspace containment, so plain `node:fs` re-reads are safe here.
   const loaded = await loadSkillFile(meta.location);
   return loaded?.content ?? null;
 }
