@@ -34,6 +34,8 @@ export type {
   ShellAllowedOutcome,
   ShellDeniedOutcome,
   ShellOutcome,
+  ShellKillResult,
+  ShellKillAllResult,
   IShellService,
 } from './service.js';
 export { isShellPendingApproval } from './service.js';
@@ -47,4 +49,5 @@ export type {
   ShellExecChunkPayload,
   ShellExecDonePayload,
   ShellExecErrorPayload,
+  ShellExecKilledPayload,
 } from './shell-events.js';

@@ -236,6 +236,15 @@ export async function bootstrap(
     pluginLimits: toPluginLimits(pluginConfig),
     logger,
     shutdown: async () => {
+      // Best-effort: SIGKILL every live shell run before tearing down.
+      // Never blocks shutdown and never throws; orphaned OS processes may
+      // still survive in edge cases (unkillable / already-orphaned PIDs).
+      try {
+        const { killedCount } = shellService.killAllRuns();
+        if (killedCount > 0) logger.info({ killedCount }, 'shutdown: killed live shell runs');
+      } catch (err) {
+        logger.warn({ err }, 'shutdown: killAllRuns failed');
+      }
       try {
         await mcpManager.closeAll().catch(() => {});
       } catch {

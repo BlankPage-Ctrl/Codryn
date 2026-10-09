@@ -65,6 +65,7 @@ export { rotateClientSecret } from './rotate.client.js';
 export { deleteClient } from './delete.client.js';
 
 export { watchShellExec } from './watch.shell-exec.js';
+export { killShellExec } from './kill.shell-exec.js';
 
 export { ensureInsight, getInsightStatus, stopInsight } from './ensure.insight.js';
 export { syncInsight, indexInsight, indexStatusInsight } from './sync.insight.js';

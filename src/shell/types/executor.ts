@@ -7,6 +7,7 @@ export interface ExecRunOptions {
   env?: Record<string, string>;
   timeoutMs: number;
   maxBufferBytes: number;
+  executionId?: string;
 }
 
 export interface ExecOutput {
@@ -23,4 +24,5 @@ export interface ExecOutput {
 export interface IShellExecutor {
   run(opts: ExecRunOptions): Promise<ExecOutput>;
   runStream(opts: ExecRunOptions, onChunk: (chunk: ShellExecChunk) => void): Promise<ExecOutput>;
+  kill(executionId: string): boolean;
 }

@@ -1,12 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { resolveWithinRoot } from '../utils/path.js';
 import type { ShellService } from '../services/shell.js';
-import type { ShellRunMeta, ShellRunResult, TerminalPolicy } from '../types/index.js';
+import type {
+  ShellKillAllResult,
+  ShellKillResult,
+  ShellRunMeta,
+  ShellRunResult,
+  TerminalPolicy,
+} from '../types/index.js';
 
 export interface ShellRunConsumerOptions {
   cwd?: string;
   timeoutMs?: number;
   maxOutputChars?: number;
+  executionId?: string;
 }
 
 /**
@@ -59,8 +66,19 @@ export class ShellConsumer {
         policy,
         timeoutMs: opts.timeoutMs,
         maxOutputChars: opts.maxOutputChars,
+        executionId: opts.executionId,
       },
       merged,
     );
+  }
+
+  /** Best-effort kill of one live run by execution id. */
+  killRun(executionId: string): ShellKillResult {
+    return this.service.killRun(executionId);
+  }
+
+  /** Best-effort kill of every live run. */
+  killAllRuns(): ShellKillAllResult {
+    return this.service.killAllRuns();
   }
 }

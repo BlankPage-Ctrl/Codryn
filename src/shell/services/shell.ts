@@ -11,6 +11,8 @@ import type {
   PolicyDecision,
   SegmentInfo,
   ShellDeniedOutcome,
+  ShellKillAllResult,
+  ShellKillResult,
   ShellOutcome,
   ShellRunData,
   ShellRunMeta,
@@ -26,6 +28,16 @@ import { ValidationError } from '../errors/validation.js';
 import { ExecutionError } from '../errors/execution.js';
 
 const DEFAULT_MAX_BUFFER_BYTES = 50 * 1024 * 1024;
+
+/** Signal sent by killRun/killAllRuns. SIGKILL cannot be caught or ignored. */
+const KILL_SIGNAL = 'SIGKILL';
+
+interface ActiveRunMeta {
+  toolCallId: string | null;
+  workspaceId: string | null;
+  command: string;
+  cwd: string;
+}
 
 /**
  * Orchestrates the shell execution pipeline: parse -> policy -> (approval?) ->
@@ -46,8 +58,57 @@ export class ShellService implements IShellService {
     private readonly eventBus?: IShellExecEventBus,
   ) {}
 
+  /**
+   * Routing metadata for live runs, keyed by execution id. Kept separate
+   * from workspace/chat storage on purpose: killing a run only needs the
+   * execution id, Entries are removed when the run settles.
+   */
+  private readonly activeMeta = new Map<string, ActiveRunMeta>();
+  /** Ids with a kill already signalled; keeps `killed` events one-per-run. */
+  private readonly killRequested = new Set<string>();
+
+  /**
+   * Best-effort kill of one live run. Idempotent and never throws for unknown ids:
+   * an id that is unknown, already finished, or already kill-requested
+   * returns `{ killed: false }` (one `killed` event per run at most).
+   */
+  killRun(executionId: string): ShellKillResult {
+    if (!executionId) return { executionId, killed: false };
+    if (this.killRequested.has(executionId)) return { executionId, killed: false };
+    const killed = this.repository.kill(executionId);
+    if (!killed) return { executionId, killed: false };
+    this.killRequested.add(executionId);
+    const meta = this.activeMeta.get(executionId);
+    this.eventBus?.emit('killed', {
+      executionId,
+      toolCallId: meta?.toolCallId ?? null,
+      workspaceId: meta?.workspaceId ?? null,
+      signal: KILL_SIGNAL,
+      at: Date.now(),
+    });
+    return { executionId, killed: true };
+  }
+
+  /**
+   * Best-effort kill of every live run (shutdown path). Never throws; a
+   * failing kill is skipped and the sweep continues.
+   */
+  killAllRuns(): ShellKillAllResult {
+    let killedCount = 0;
+    for (const executionId of [...this.activeMeta.keys()]) {
+      try {
+        if (this.killRun(executionId).killed) killedCount += 1;
+      } catch {
+        // best-effort: keep sweeping the rest
+      }
+    }
+    return { killedCount };
+  }
+
   async run(opts: ShellRunOptions, meta?: ShellRunMeta): Promise<ShellRunResult> {
-    const executionId = randomUUID();
+    // Caller-provided ids let someone kill the run mid-process with
+    // the same id; otherwise mint one. Reused ids are last-write-wins.
+    const executionId = opts.executionId || randomUUID();
     const toolCallId = meta?.toolCallId ?? null;
     const workspaceId = meta?.workspaceId ?? null;
     const chatId = meta?.chatId ?? null;
@@ -277,6 +338,14 @@ export class ShellService implements IShellService {
   ): Promise<ShellOutcome> {
     const timeoutMs = opts.timeoutMs ?? this.globalConfig.defaultTimeoutMs;
 
+    // Registered before `start` so observers (and killers) always see it.
+    this.activeMeta.set(ids.executionId, {
+      toolCallId: ids.toolCallId,
+      workspaceId: ids.workspaceId,
+      command: opts.command,
+      cwd: opts.cwd,
+    });
+
     if (this.eventBus) {
       this.eventBus.emit('start', {
         executionId: ids.executionId,
@@ -306,6 +375,7 @@ export class ShellService implements IShellService {
             ...chunk,
           });
         },
+        ids.executionId,
       );
     } catch (err) {
       // Validation errors are programmer errors? propagate, never mislabel as execution failure.
@@ -333,6 +403,9 @@ export class ShellService implements IShellService {
         ids.executionId,
         details,
       );
+    } finally {
+      this.activeMeta.delete(ids.executionId);
+      this.killRequested.delete(ids.executionId);
     }
 
     const stdout = stripAnsiText(raw.stdout);

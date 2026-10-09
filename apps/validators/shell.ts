@@ -10,6 +10,14 @@ export const DecideApprovalBodySchema = z.object({
   decision: ApprovalDecisionSchema,
 });
 
+export const ShellExecutionIdParamsSchema = z.object({
+  executionId: z.string().min(1),
+});
+
+export function validateShellExecutionId(params: unknown) {
+  return ShellExecutionIdParamsSchema.parse(params);
+}
+
 export const DecideApprovalParamsSchema = ApprovalIdParamsSchema.extend({
   decision: ApprovalDecisionSchema,
 });

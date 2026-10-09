@@ -58,6 +58,8 @@ export type {
   ShellAllowedOutcome,
   ShellDeniedOutcome,
   ShellOutcome,
+  ShellKillResult,
+  ShellKillAllResult,
   IShellService,
 } from './types/index.js';
 export { isShellPendingApproval } from './types/index.js';
