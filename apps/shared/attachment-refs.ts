@@ -1,5 +1,8 @@
 import type { UIMessage } from 'ai';
 import { ATTACHMENT_URL_SCHEME } from '../../src/attachments/index.js';
+import type { AttachmentsService } from '../../src/attachments/index.js';
+import { AttachmentsDomainError } from '../../src/attachments/errors/base.js';
+import { AppError } from './errors.js';
 
 export function attachmentIdFromUrl(url: string): string | null {
   if (!url.startsWith(ATTACHMENT_URL_SCHEME)) return null;
@@ -25,9 +28,7 @@ export function collectAttachmentIds(messages: UIMessage[]): string[] {
 }
 
 /**
- * Rewrites `attachment://<id>` file urls to provider-ready data-URLs.
- * Pure: returns new message objects, never mutates the input (the persisted
- * copies keep the opaque refs so the DB stays lean).
+ * Rewrites attachment refs to data-URLs. Pure: never mutates the input.
  */
 export function rewriteAttachmentUrls(
   messages: UIMessage[],
@@ -46,4 +47,44 @@ export function rewriteAttachmentUrls(
     });
     return changed ? { ...message, parts } : message;
   });
+}
+
+// Unknown or foreign attachments abort the run before any model call.
+export function toAttachmentAppError(err: AttachmentsDomainError): AppError {
+  const code =
+    err.code === 'VALIDATION_FAILED' || err.code === 'NOT_FOUND' || err.code === 'FORBIDDEN'
+      ? err.code
+      : 'INTERNAL_ERROR';
+  return new AppError(err.statusCode, err.message, code);
+}
+
+export async function linkIncomingAttachments(
+  attachments: Pick<AttachmentsService, 'markLinked'>,
+  workspaceId: string,
+  attachmentIds: string[],
+): Promise<void> {
+  if (attachmentIds.length === 0) return;
+  try {
+    await attachments.markLinked(workspaceId, attachmentIds);
+  } catch (err) {
+    if (err instanceof AttachmentsDomainError) throw toAttachmentAppError(err);
+    throw err;
+  }
+}
+
+// Persisted copies keep the opaque refs so the DB stays lean.
+export async function resolveAttachmentsForModel(
+  attachments: Pick<AttachmentsService, 'resolveDataUrls'>,
+  uiMessages: UIMessage[],
+  workspaceId: string,
+): Promise<UIMessage[]> {
+  const ids = collectAttachmentIds(uiMessages);
+  if (ids.length === 0) return uiMessages;
+  try {
+    const dataUrls = await attachments.resolveDataUrls(workspaceId, ids);
+    return rewriteAttachmentUrls(uiMessages, dataUrls);
+  } catch (err) {
+    if (err instanceof AttachmentsDomainError) throw toAttachmentAppError(err);
+    throw err;
+  }
 }
