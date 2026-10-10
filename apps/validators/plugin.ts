@@ -35,3 +35,20 @@ export const PluginSetEnabledParamsSchema = z.object({
 export function validatePluginSetEnabled(params: unknown) {
   return PluginSetEnabledParamsSchema.parse(params);
 }
+
+export const PluginRegisterParamsSchema = z.object({
+  pluginId: PluginIdSchema,
+  pluginDir: z.string().trim().min(1).max(1024).optional(),
+});
+
+export function validatePluginRegister(params: unknown) {
+  return PluginRegisterParamsSchema.parse(params);
+}
+
+export const PluginUnregisterParamsSchema = z.object({
+  pluginId: PluginIdSchema,
+});
+
+export function validatePluginUnregister(params: unknown) {
+  return PluginUnregisterParamsSchema.parse(params);
+}

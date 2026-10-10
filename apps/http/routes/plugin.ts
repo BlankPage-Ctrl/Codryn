@@ -10,7 +10,9 @@ import {
 } from '../../actions/index.js';
 import {
   validatePluginGet,
+  validatePluginRegister,
   validatePluginSetEnabled,
+  validatePluginUnregister,
   validatePluginWorkspace,
 } from '../../validators/plugin.js';
 import { z } from 'zod';
@@ -20,11 +22,16 @@ const PluginPathSchema = z.object({
   pluginId: z.string().min(1),
 });
 
+const PluginIdParamSchema = z.object({
+  pluginId: z.string().min(1),
+});
+
 const PluginSetEnabledBodySchema = z.object({
   enabled: z.boolean(),
 });
 
 const RegisterPluginBodySchema = z.object({
+  pluginId: z.string().min(1),
   pluginDir: z.string().min(1).optional(),
 });
 
@@ -59,12 +66,13 @@ export function registerPluginRoutes(app: FastifyInstance, ctx: Container) {
 
   app.post('/plugins/register', async (req) => {
     const body = RegisterPluginBodySchema.parse(req.body);
-    const path = PluginPathSchema.parse(req.params);
-    return registerPlugin(ctx, { pluginId: path.pluginId, pluginDir: body.pluginDir });
+    const input = validatePluginRegister({ pluginId: body.pluginId, pluginDir: body.pluginDir });
+    return registerPlugin(ctx, { pluginId: input.pluginId, pluginDir: input.pluginDir });
   });
 
   app.delete('/plugins/:pluginId', async (req) => {
-    const path = PluginPathSchema.parse(req.params);
-    return unregisterPlugin(ctx, { pluginId: path.pluginId });
+    const path = PluginIdParamSchema.parse(req.params);
+    const input = validatePluginUnregister({ pluginId: path.pluginId });
+    return unregisterPlugin(ctx, { pluginId: input.pluginId });
   });
 }

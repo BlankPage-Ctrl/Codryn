@@ -1,10 +1,11 @@
 import { NotFoundError } from '../shared/errors.js';
-import {
-  loadRegisteredPlugins,
-  setPluginEnabled as persistSetPluginEnabled,
-} from '../plugins/index.js';
+import { loadRegisteredPlugins, setPluginEnabledSetting } from '../plugins/index.js';
 import type { PluginState } from '../plugins/index.js';
-import { assertPluginsEnabled, type PluginActionCtx } from './list.plugin.js';
+import {
+  assertPluginsEnabled,
+  resolvePluginProjectPath,
+  type PluginActionCtx,
+} from './list.plugin.js';
 import { getPlugin } from './get.plugin.js';
 
 export interface SetPluginEnabledParams {
@@ -23,10 +24,16 @@ export async function setPluginEnabled(
   params: SetPluginEnabledParams,
 ): Promise<SetPluginEnabledResult> {
   assertPluginsEnabled(ctx);
+  await resolvePluginProjectPath(ctx, params.workspaceId);
   const entries = await loadRegisteredPlugins(ctx.logger as never);
   if (!entries.some((e) => e.entry.id === params.id)) {
     throw new NotFoundError(`Plugin ${params.id} not found in the plugin registry`);
   }
-  await persistSetPluginEnabled(params.id, params.enabled, ctx.logger as never);
+  await setPluginEnabledSetting(
+    ctx.settingsService,
+    params.workspaceId,
+    params.id,
+    params.enabled,
+  );
   return getPlugin(ctx, { workspaceId: params.workspaceId, id: params.id });
 }

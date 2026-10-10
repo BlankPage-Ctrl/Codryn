@@ -1,10 +1,19 @@
-import { getPlugin, listPlugins, setPluginEnabled } from '../../actions/index.js';
+import {
+  discoverPlugins,
+  getPlugin,
+  listPlugins,
+  registerPlugin,
+  setPluginEnabled,
+  unregisterPlugin,
+} from '../../actions/index.js';
 import {
   PluginGetParamsSchema,
+  PluginRegisterParamsSchema,
   PluginSetEnabledParamsSchema,
+  PluginUnregisterParamsSchema,
   PluginWorkspaceParamsSchema,
 } from '../../validators/plugin.js';
-import { act, type StdioMethod } from './types.js';
+import { act, noParams, type StdioMethod } from './types.js';
 
 export const pluginMethods: Record<string, StdioMethod> = {
   'list.plugin': {
@@ -21,5 +30,20 @@ export const pluginMethods: Record<string, StdioMethod> = {
     kind: 'plain',
     validate: (p) => PluginSetEnabledParamsSchema.parse(p),
     run: act(setPluginEnabled),
+  },
+  'discover.plugin': {
+    kind: 'plain',
+    validate: noParams,
+    run: (ctx) => discoverPlugins(ctx),
+  },
+  'register.plugin': {
+    kind: 'plain',
+    validate: (p) => PluginRegisterParamsSchema.parse(p),
+    run: act(registerPlugin),
+  },
+  'unregister.plugin': {
+    kind: 'plain',
+    validate: (p) => PluginUnregisterParamsSchema.parse(p),
+    run: act(unregisterPlugin),
   },
 };
