@@ -275,7 +275,12 @@ export async function startMessageRun(
             ),
             thinkingLevel,
             maxRetries: 3,
-            timeout: { stepMs: 120_000, toolMs: 360_000 },
+            timeout: {
+              stepMs: 600_000,
+              chunkMs: 120_000,
+              toolMs: 360_000,
+              tools: { request_humanMs: 300_000 },
+            },
             ...(abortSignal ? { abortSignal } : {}),
             onError: ({ error }) => {
               const isTimeout = (error as { name?: string })?.name === 'TimeoutError';
