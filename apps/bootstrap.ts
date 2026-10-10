@@ -66,6 +66,7 @@ import {
   toPluginLimits,
   type PluginGlobalLimits,
 } from './plugins/config.js';
+import { PluginHost } from './plugins/host.js';
 
 export interface Container {
   clientService: ClientService;
@@ -90,6 +91,7 @@ export interface Container {
   mcpManager: McpManager;
   pluginsEnabled: boolean;
   pluginLimits: PluginGlobalLimits;
+  pluginHost: PluginHost;
   logger: Logger;
   shutdown: () => Promise<void>;
 }
@@ -207,6 +209,10 @@ export async function bootstrap(
   // # Plugins (unofficial, default off; management + run paths gate on it).
   const pluginConfig = { ...DEFAULT_PLUGIN_CONFIG, ...config.plugins };
 
+  // # Plugin host
+  const { PluginHost } = await import('./plugins/host.js');
+  const pluginHost = new PluginHost({ logger });
+
   return {
     clientService,
     chatService,
@@ -234,6 +240,7 @@ export async function bootstrap(
     mcpManager,
     pluginsEnabled: pluginConfig.enabled,
     pluginLimits: toPluginLimits(pluginConfig),
+    pluginHost,
     logger,
     shutdown: async () => {
       // Best-effort: SIGKILL every live shell run before tearing down.
@@ -249,6 +256,11 @@ export async function bootstrap(
         await mcpManager.closeAll().catch(() => {});
       } catch {
         // ignore mcp shutdown
+      }
+      try {
+        await pluginHost.closeAll();
+      } catch {
+        // ignore plugin shutdown
       }
       try {
         const { getInsightManager } = await import('./insight/manager.js');

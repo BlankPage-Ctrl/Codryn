@@ -1,0 +1,68 @@
+{
+  "id": "vuln-scanner",
+  "name": "Vulnerability Scanner",
+  "version": "1.0.0",
+  "description": "Scan project for known CVEs and fetch security advisories",
+  "permissions": {
+    "shell": false,
+    "network": true,
+    "sensitive": false
+  },
+  "lifecycle": {
+    "bootstrap": "Use this tool to scan for security issues and fetch advisories."
+  },
+  "runtime": {
+    "command": "node",
+    "args": ["./plugin.js"],
+    "cwd": "."
+  },
+  "hooks": {
+    "beforeTool": true,
+    "afterTool": true,
+    "beforeExecute": false,
+    "afterExecute": false
+  },
+  "tools": [
+    {
+      "name": "scan_vulnerability",
+      "description": "Scan current project for known CVEs",
+      "sensitive": false,
+      "destructive": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path to scan (relative to project root)"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"],
+            "description": "Minimum severity to report"
+          }
+        },
+        "required": ["path"]
+      }
+    },
+    {
+      "name": "fetch_security_advisory",
+      "description": "Fetch security advisory for a package",
+      "sensitive": false,
+      "destructive": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string",
+            "description": "Package name"
+          },
+          "version": {
+            "type": "string",
+            "description": "Package version (optional)"
+          }
+        },
+        "required": ["package"]
+      }
+    }
+  ]
+}

@@ -1,6 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { Container } from '../../bootstrap.js';
-import { getPlugin, listPlugins, setPluginEnabled } from '../../actions/index.js';
+import {
+  getPlugin,
+  listPlugins,
+  setPluginEnabled,
+  registerPlugin,
+  unregisterPlugin,
+  discoverPlugins,
+} from '../../actions/index.js';
 import {
   validatePluginGet,
   validatePluginSetEnabled,
@@ -15,6 +22,10 @@ const PluginPathSchema = z.object({
 
 const PluginSetEnabledBodySchema = z.object({
   enabled: z.boolean(),
+});
+
+const RegisterPluginBodySchema = z.object({
+  pluginDir: z.string().min(1).optional(),
 });
 
 export function registerPluginRoutes(app: FastifyInstance, ctx: Container) {
@@ -40,5 +51,20 @@ export function registerPluginRoutes(app: FastifyInstance, ctx: Container) {
       enabled: body.enabled,
     });
     return setPluginEnabled(ctx, input);
+  });
+
+  app.post('/plugins/discover', async () => {
+    return discoverPlugins(ctx);
+  });
+
+  app.post('/plugins/register', async (req) => {
+    const body = RegisterPluginBodySchema.parse(req.body);
+    const path = PluginPathSchema.parse(req.params);
+    return registerPlugin(ctx, { pluginId: path.pluginId, pluginDir: body.pluginDir });
+  });
+
+  app.delete('/plugins/:pluginId', async (req) => {
+    const path = PluginPathSchema.parse(req.params);
+    return unregisterPlugin(ctx, { pluginId: path.pluginId });
   });
 }

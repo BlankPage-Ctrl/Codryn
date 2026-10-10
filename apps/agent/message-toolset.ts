@@ -7,7 +7,7 @@ import { resolveShellPermissionViaHitl } from '../shared/shell-permission.js';
 import type { FmServices } from '../shared/fm-services.js';
 import type { Logger } from '../shared/types.js';
 import type { SkillSources } from '../skills/index.js';
-import { commandDeniedByRules, toolDeniedByRules, type PluginHookRule } from '../plugins/index.js';
+
 import type { InsightSettingsPort } from '../insight/types.js';
 import type { AgentMode } from './modes.js';
 import {
@@ -48,9 +48,9 @@ export interface MessageToolsetDeps {
   runId: string;
   mode: AgentMode;
   mcpTools: AgentTool[];
+  pluginTools?: AgentTool[];
   onRichResult: OnRichResult;
   logger: Logger;
-  pluginHookRules?: PluginHookRule[];
 }
 
 // Shared workspace+chat scoped FM permission resolver for list/read/grep tools.
@@ -91,21 +91,11 @@ export function buildMessageRunToolset(deps: MessageToolsetDeps): AgentTool[] {
   // the file logger (it logs outside-path attempts verbosely).
   const fmResolver = makeFmResolver(hitlService, { workspaceId, chatId });
   const fmResolverLogged = makeFmResolver(hitlService, { workspaceId, chatId, logger });
-  const hookRules = deps.pluginHookRules ?? [];
-  const shellResolver = (pending: ShellPendingApproval) => {
-    const denied = commandDeniedByRules(hookRules, pending.permission.command ?? '');
-    if (denied) {
-      logger.warn(
-        { sensitive: true, command: pending.permission.command, plugin: denied.pluginId },
-        'plugins: shell command denied by hook rule, aborting before prompt',
-      );
-      return pending.abort();
-    }
-    return resolveShellPermissionViaHitl(hitlService, pending, {
+  const shellResolver = (pending: ShellPendingApproval) =>
+    resolveShellPermissionViaHitl(hitlService, pending, {
       workspaceRoot,
       logger,
     });
-  };
   const tools: AgentTool[] = [
     ...createListFilesTool(fm.listDirService, {
       onRichResult: deps.onRichResult,
@@ -166,14 +156,10 @@ export function buildMessageRunToolset(deps: MessageToolsetDeps): AgentTool[] {
           onRichResult: deps.onRichResult,
         })
       : []),
+    // Plugin tools.
+    ...(deps.pluginTools ?? []),
     // MCP tools from the workspace's own `.mcp.json` (Tools wired to prod).
     ...deps.mcpTools,
   ];
-  if (hookRules.length === 0) return tools;
-  return tools.filter((tool) => {
-    const denied = toolDeniedByRules(hookRules, tool.name);
-    if (!denied) return true;
-    logger.warn({ tool: tool.name, plugin: denied.pluginId }, 'plugins: tool removed by hook rule');
-    return false;
-  });
+  return tools;
 }

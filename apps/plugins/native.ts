@@ -5,22 +5,7 @@ import { z } from 'zod';
 export const CODRYN_MANIFEST_FILENAME = 'codryn-plugin.json';
 
 const MAX_MANIFEST_BYTES = 64_000;
-const MAX_RULES = 32;
 const MAX_TOOLS = 32;
-
-/** One declarative hook rule: data evaluated by the guard, never code. */
-export const PluginHookRuleSchema = z.object({
-  event: z.enum(['PreToolUse', 'PostToolUse']),
-  matchTool: z.string().trim().min(1).max(64).optional(),
-  matchCommand: z.string().trim().min(1).max(500).optional(),
-  decision: z.enum(['allow', 'deny', 'ask']),
-  message: z.string().trim().max(500).optional(),
-});
-
-export type PluginHookRule = z.infer<typeof PluginHookRuleSchema> & {
-  /** Filled by the guard with the owning plugin id (never read from disk). */
-  pluginId?: string;
-};
 
 export const PluginToolDeclSchema = z.object({
   name: z.string().trim().min(1).max(64),
@@ -57,8 +42,24 @@ const PluginRuntimeSchema = z
   .object({
     command: z.string().trim().min(1).max(500),
     args: z.array(z.string().max(500)).max(16).default([]),
+    cwd: z.string().max(500).optional(),
+    env: z.record(z.string(), z.string()).default({}),
   })
   .optional();
+
+const PluginHooksSchema = z
+  .object({
+    beforeTool: z.boolean().default(false),
+    afterTool: z.boolean().default(false),
+    beforeExecute: z.boolean().default(false),
+    afterExecute: z.boolean().default(false),
+  })
+  .default({
+    beforeTool: false,
+    afterTool: false,
+    beforeExecute: false,
+    afterExecute: false,
+  });
 
 export const CodrynPluginManifestSchema = z
   .object({
@@ -77,11 +78,7 @@ export const CodrynPluginManifestSchema = z
     lifecycle: PluginLifecycleSchema,
     limits: PluginLimitsSchema,
     runtime: PluginRuntimeSchema,
-    hooks: z
-      .object({
-        rules: z.array(PluginHookRuleSchema).max(MAX_RULES).default([]),
-      })
-      .default({ rules: [] }),
+    hooks: PluginHooksSchema,
     tools: z.array(PluginToolDeclSchema).max(MAX_TOOLS).default([]),
   })
   .passthrough();
@@ -120,10 +117,6 @@ export async function loadCodrynManifest(dir: string): Promise<ManifestLoadResul
   if (!parsed.success) {
     notices.push('codryn-plugin.json failed validation and was ignored.');
     return { manifest: null, notices };
-  }
-  const rules = parsed.data.hooks.rules;
-  if (rules.length >= MAX_RULES) {
-    notices.push(`hook rules capped at ${MAX_RULES}.`);
   }
   return { manifest: parsed.data, notices };
 }

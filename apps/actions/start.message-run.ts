@@ -32,7 +32,7 @@ import {
   toProjectSkillPort,
   type SkillSources,
 } from '../skills/index.js';
-import { buildPluginBootstrap, collectHookRules, loadPluginStates } from '../plugins/index.js';
+import { buildPluginBootstrap, loadPluginStates } from '../plugins/index.js';
 import { buildFmServices } from '../shared/fm-services.js';
 import { buildShellConsumer } from '../shared/shell-consumer.js';
 import {
@@ -77,10 +77,10 @@ export async function startMessageRun(
         ctx.settingsService,
         ctx.logger,
         ctx.pluginLimits,
+        ctx.hitlService,
       )
-    : { states: [], skills: [] };
+    : { states: [], skills: [], tools: [], host: null as never };
   const pluginBootstrap = buildPluginBootstrap(pluginLoad.states);
-  const pluginHookRules = collectHookRules(pluginLoad.states);
   const skillSources: SkillSources = {
     globalRoot: resolveGlobalRoot(),
     project: toProjectSkillPort(ctx.fileRepo, projectSkillDir(workspace.projectPath)),
@@ -268,9 +268,9 @@ export async function startMessageRun(
                 runId,
                 mode,
                 mcpTools,
+                pluginTools: pluginLoad.tools,
                 onRichResult: handleRich,
                 logger: ctx.logger,
-                pluginHookRules,
               }),
             ),
             thinkingLevel,

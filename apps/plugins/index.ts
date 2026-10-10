@@ -1,26 +1,28 @@
 export type {
   PluginCaps,
-  PluginEntry,
   PluginLogger,
+  PluginRegistryEntry,
+  DiscoveredPlugin,
   PluginSkill,
-  PluginSource,
   PluginSourceKind,
   PluginState,
   PluginStatus,
 } from './types.js';
 export {
-  PLUGINS_FILENAME,
-  loadPluginRegistry,
-  projectPluginsFile,
-  resolveEntryDir,
-  resolveGlobalPluginsFile,
-  type ResolvedPluginEntry,
+  PLUGINS_DIR,
+  PLUGINS_REGISTRY_FILE,
+  discoverPlugins,
+  registerPlugin,
+  unregisterPlugin,
+  setPluginEnabled,
+  loadRegisteredPlugins,
+  resolvePluginDir,
 } from './external-registry.js';
 export {
   PLUGIN_SETTING_PREFIX,
   isPluginEnabled,
   pluginKey,
-  setPluginEnabled,
+  setPluginEnabled as setPluginEnabledSetting,
   type PluginSettingsPort,
 } from './settings.js';
 export { scanPluginCaps } from './manifest.js';
@@ -36,18 +38,38 @@ export {
   CODRYN_MANIFEST_FILENAME,
   CodrynPluginManifestSchema,
   loadCodrynManifest,
-  PluginHookRuleSchema,
   PluginToolDeclSchema,
   type CodrynPluginManifest,
   type ManifestLoadResult,
-  type PluginHookRule,
   type PluginToolDecl,
 } from './native.js';
 export { dedupeToolDecls, scanToolDeclarations } from './safety.js';
-export {
-  collectHookRules,
-  commandDeniedByRules,
-  matchHookRule,
-  toolDeniedByRules,
-} from './hooks.js';
 export { buildPluginBootstrap, loadPluginStates, type PluginLoadResult } from './guard.js';
+export { PluginHost, type PluginHostOptions, type PluginHostEntry } from './host.js';
+export { createPluginTool, createPluginTools, type PluginToolBridgeDeps } from './tool-bridge.js';
+export { PluginProcess, type PluginProcessOptions, type PluginRuntimeConfig } from './runtime/process.js';
+export {
+  PluginMethods,
+  PluginHookMethods,
+  PluginHookNames,
+  HOOK_NAME_TO_METHOD,
+  HOOK_METHOD_TO_NAME,
+  ALL_HOOK_NAMES,
+  PluginErrorCode,
+  type PluginMethod,
+  type PluginHookMethod,
+  type PluginHookName,
+  type PluginInitializeParams,
+  type PluginInitializeResult,
+  type PluginToolsCallParams,
+  type PluginToolsCallResult,
+  type PluginPingResult,
+} from './runtime/protocol.js';
+export type {
+  PluginInternalManifest,
+  PluginInternalTool,
+  PluginHookPayload,
+  PluginToolResult,
+  PluginProcessHandle,
+  PluginProcessState,
+} from './runtime/types.js';

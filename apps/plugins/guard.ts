@@ -1,35 +1,25 @@
 import { isPluginEnabled, type PluginSettingsPort } from './settings.js';
-import { loadPluginRegistry } from './external-registry.js';
+import { loadRegisteredPlugins } from './external-registry.js';
 import { scanPluginCaps } from './manifest.js';
 import { loadPluginDirSkills } from './skills.js';
+import { loadCodrynManifest } from './native.js';
 import {
   applyGlobalLimits,
   DEFAULT_PLUGIN_CONFIG,
   toPluginLimits,
   type PluginGlobalLimits,
 } from './config.js';
+import { PluginHost } from './host.js';
+import { createPluginTools } from './tool-bridge.js';
 import type { PluginLogger, PluginSkill, PluginState } from './types.js';
-
-/**
- * Guard middleware (sits between Codryn and every plugin).
- *
- * Nothing from a plugin touches the agent or the system without passing
- * through here:
- * - Enabled check: registry `enabled` flag AND workspace settings toggle.
- *   Either side can switch a plugin off; both must agree for it to run.
- * - Capability gate: explicit manifest permissions are announced in the
- *   bootstrap so the model asks first, while the existing per-tool HITL
- *   resolvers (file/shell) stay the enforcement point - this layer
- *   declares, the tool layer enforces. Declarative `deny` hook rules are
- *   enforced here: by tool name (tool removed) and by shell command
- *   pattern (call aborted before any prompt).
- * - Failure isolation: one broken plugin (missing dir, bad manifest)
- *   degrades to a per-plugin error slot, never to a failed run.
- */
+import type { AgentTool } from '../../src/agent/index.js';
+import type { IHitlService } from '../../src/human-in-the-loop/index.js';
 
 export interface PluginLoadResult {
   states: PluginState[];
   skills: PluginSkill[];
+  tools: AgentTool[];
+  host: PluginHost;
 }
 
 function oneLine(text: string): string {
@@ -47,16 +37,18 @@ export async function loadPluginStates(
   settings: PluginSettingsPort | null,
   logger?: PluginLogger,
   limits: PluginGlobalLimits = toPluginLimits(DEFAULT_PLUGIN_CONFIG),
+  hitl?: IHitlService,
 ): Promise<PluginLoadResult> {
   const states: PluginState[] = [];
   const skills: PluginSkill[] = [];
+  const host = new PluginHost({ logger: logger as never });
 
-  let entries;
+  let entries: Array<{ entry: { id: string; enabled: boolean }; dir: string }>;
   try {
-    entries = await loadPluginRegistry(projectPath, { logger });
+    entries = await loadRegisteredPlugins(logger);
   } catch (err) {
     logger?.warn({ err }, 'plugins: registry load failed, continuing without plugins');
-    return { states, skills };
+    return { states, skills, tools: [], host };
   }
   if (entries.length > limits.maxPlugins) {
     logger?.warn(
@@ -66,12 +58,12 @@ export async function loadPluginStates(
     entries = entries.slice(0, Math.max(0, limits.maxPlugins));
   }
 
-  for (const { entry, dir, kind } of entries) {
+  for (const { entry, dir } of entries) {
     if (entry.enabled === false) {
       states.push({
         id: entry.id,
         path: dir,
-        source: kind,
+        source: 'local',
         enabled: false,
         status: 'disabled',
         error: null,
@@ -85,7 +77,7 @@ export async function loadPluginStates(
           states.push({
             id: entry.id,
             path: dir,
-            source: kind,
+            source: 'local',
             enabled: false,
             status: 'disabled',
             error: null,
@@ -94,31 +86,18 @@ export async function loadPluginStates(
           continue;
         }
       } catch (err) {
-        // Fail-open: a settings failure must never disable a plugin.
         logger?.warn(
           { err, plugin: entry.id },
           'plugins: enabled check failed, treating as enabled',
         );
       }
     }
-    if (!dir) {
-      states.push({
-        id: entry.id,
-        path: null,
-        source: kind,
-        enabled: true,
-        status: 'not-installed',
-        error: 'Remote plugin source is recorded but not downloaded yet.',
-        caps: null,
-      });
-      continue;
-    }
     const caps = await scanPluginCaps(entry.id, dir, logger);
     if (!caps) {
       states.push({
         id: entry.id,
         path: dir,
-        source: kind,
+        source: 'local',
         enabled: true,
         status: 'error',
         error: 'Plugin directory has no readable skills.',
@@ -137,7 +116,7 @@ export async function loadPluginStates(
       states.push({
         id: entry.id,
         path: dir,
-        source: kind,
+        source: 'local',
         enabled: true,
         status: 'error',
         error: 'Plugin has no skills after server limits were applied.',
@@ -150,15 +129,40 @@ export async function loadPluginStates(
     states.push({
       id: entry.id,
       path: dir,
-      source: kind,
+      source: 'local',
       enabled: true,
       status: 'ready',
       error: null,
       caps: effectiveCaps,
     });
+
+    if (effectiveCaps.format === 'codryn' && effectiveCaps.tools.length > 0) {
+      const { manifest: codrynManifest } = await loadCodrynManifest(dir);
+      if (codrynManifest?.runtime) {
+        host.register(entry.id, codrynManifest, dir, workspaceId);
+      }
+    }
   }
 
-  return { states, skills };
+  const tools: AgentTool[] = [];
+  for (const pluginId of host.getRegisteredIds()) {
+    try {
+      const handle = await host.ensurePlugin(pluginId);
+      if (hitl && handle.tools.length > 0) {
+        const pluginTools = createPluginTools(pluginId, handle.tools, {
+          host,
+          hitl,
+          workspaceId,
+          chatId: '',
+        });
+        tools.push(...pluginTools);
+      }
+    } catch (err) {
+      logger?.warn({ err, plugin: pluginId }, 'plugins: failed to spawn plugin process');
+    }
+  }
+
+  return { states, skills, tools, host };
 }
 
 export function buildPluginBootstrap(states: PluginState[]): string | null {
