@@ -156,14 +156,11 @@ export class PluginProcess extends EventEmitter {
 
     this.state = 'initializing';
     try {
-      const result = (await this.request(
-        PluginMethods.INITIALIZE,
-        {
-          pluginId: this.id,
-          workspaceId: this.workspaceId,
-          cwd: this.cwd,
-        } satisfies PluginInitializeParams,
-      )) as PluginInitializeResult;
+      const result = (await this.request(PluginMethods.INITIALIZE, {
+        pluginId: this.id,
+        workspaceId: this.workspaceId,
+        cwd: this.cwd,
+      } satisfies PluginInitializeParams)) as PluginInitializeResult;
 
       this.internalManifest = result.manifest;
       this.tools = result.manifest.tools;
@@ -214,10 +211,7 @@ export class PluginProcess extends EventEmitter {
       this.child.stdin?.write(message);
       this.lastActivityAt = Date.now();
     } catch (err) {
-      this.logger.warn(
-        { err, plugin: this.id, method },
-        'plugin notify failed',
-      );
+      this.logger.warn({ err, plugin: this.id, method }, 'plugin notify failed');
     }
   }
 

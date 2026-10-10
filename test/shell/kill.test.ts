@@ -143,8 +143,5 @@ test('kill: generated id is used when caller provides none', async (t) => {
   const r = await svc.run({ command: 'echo hello', cwd: root, policy: ALLOW_POLICY });
   assert.equal(r.ok, true);
   if (!r.ok) return;
-  assert.match(
-    r.executionId,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-  );
+  assert.match(r.executionId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 });

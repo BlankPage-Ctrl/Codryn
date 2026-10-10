@@ -7,18 +7,8 @@ import { PluginProcess } from '../../apps/plugins/runtime/process.js';
 import { PluginHost } from '../../apps/plugins/host.js';
 import { createPluginTool } from '../../apps/plugins/tool-bridge.js';
 import { loadCodrynManifest } from '../../apps/plugins/native.js';
+import type { CodrynPluginManifest } from '../../apps/plugins/native.js';
 import type { PluginInternalTool } from '../../apps/plugins/runtime/types.js';
-
-function memSettings(initial: Record<string, string> = {}) {
-  const store = new Map(Object.entries(initial));
-  return {
-    store,
-    getValue: async (k: string) => (store.has(k) ? store.get(k)! : null),
-    setValue: async (k: string, v: string) => {
-      store.set(k, v);
-    },
-  };
-}
 
 function writeManifest(dir: string, manifest: unknown): void {
   mkdirSync(dir, { recursive: true });
@@ -32,6 +22,33 @@ function baseManifest(overrides: Record<string, unknown> = {}): Record<string, u
     version: '1.0.0',
     description: 'Demo plugin',
     ...overrides,
+  };
+}
+
+function registryManifest(partial: {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  runtime?: { command: string; args?: string[] };
+  hooks?: Partial<NonNullable<CodrynPluginManifest['hooks']>>;
+  tools?: CodrynPluginManifest['tools'];
+}): CodrynPluginManifest {
+  const { runtime, hooks, ...rest } = partial;
+  return {
+    permissions: { shell: false, network: false, sensitive: false },
+    lifecycle: {},
+    limits: { maxSkills: 40, maxSkillBytes: 1_000_000 },
+    tools: [],
+    ...rest,
+    ...(runtime ? { runtime: { args: [], env: {}, ...runtime } } : {}),
+    hooks: {
+      beforeTool: false,
+      afterTool: false,
+      beforeExecute: false,
+      afterExecute: false,
+      ...hooks,
+    },
   };
 }
 
@@ -196,7 +213,7 @@ rl.on('line', (line) => {
 
     const host = new PluginHost({ timeoutMs: 5000, spawnTimeoutMs: 5000 });
 
-    const manifest = {
+    const manifest = registryManifest({
       id: 'math',
       name: 'Math',
       version: '1.0.0',
@@ -204,7 +221,7 @@ rl.on('line', (line) => {
       runtime: { command: 'node', args: [pluginScript] },
       hooks: { beforeTool: false, afterTool: false, beforeExecute: false, afterExecute: false },
       tools: [],
-    };
+    });
     host.register('math', manifest, tmp, 'ws1');
 
     const handle = await host.ensurePlugin('math');
@@ -258,7 +275,7 @@ rl.on('line', (line) => {
 
     const host = new PluginHost({ timeoutMs: 5000, spawnTimeoutMs: 5000 });
 
-    const manifestWithHook = {
+    const manifestWithHook = registryManifest({
       id: 'hooked',
       name: 'Hooked',
       version: '1.0.0',
@@ -266,10 +283,10 @@ rl.on('line', (line) => {
       runtime: { command: 'node', args: [pluginScript] },
       hooks: { beforeTool: true, afterTool: false, beforeExecute: false, afterExecute: false },
       tools: [],
-    };
+    });
     host.register('hooked', manifestWithHook, tmp, 'ws1');
 
-    const manifestNoHook = {
+    const manifestNoHook = registryManifest({
       id: 'unhooked',
       name: 'Unhooked',
       version: '1.0.0',
@@ -277,7 +294,7 @@ rl.on('line', (line) => {
       runtime: { command: 'node', args: [pluginScript] },
       hooks: { beforeTool: false, afterTool: false, beforeExecute: false, afterExecute: false },
       tools: [],
-    };
+    });
     host.register('unhooked', manifestNoHook, tmp, 'ws1');
 
     await host.ensurePlugin('hooked');

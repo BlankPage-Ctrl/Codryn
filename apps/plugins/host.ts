@@ -1,10 +1,15 @@
 import type { Logger } from '../shared/types.js';
-import { PluginProcess, type PluginProcessOptions, type PluginRuntimeConfig } from './runtime/process.js';
-import type { PluginProcessHandle, PluginInternalTool, PluginHookPayload } from './runtime/types.js';
 import {
-  HOOK_NAME_TO_METHOD,
-  type PluginHookName,
-} from './runtime/protocol.js';
+  PluginProcess,
+  type PluginProcessOptions,
+  type PluginRuntimeConfig,
+} from './runtime/process.js';
+import type {
+  PluginProcessHandle,
+  PluginInternalTool,
+  PluginHookPayload,
+} from './runtime/types.js';
+import { HOOK_NAME_TO_METHOD, type PluginHookName } from './runtime/protocol.js';
 import type { CodrynPluginManifest } from './native.js';
 
 export interface PluginHostOptions {
@@ -36,12 +41,7 @@ export class PluginHost {
     this.logger = opts.logger ?? console;
   }
 
-  register(
-    id: string,
-    manifest: CodrynPluginManifest,
-    dir: string,
-    workspaceId: string,
-  ): void {
+  register(id: string, manifest: CodrynPluginManifest, dir: string, workspaceId: string): void {
     if (!manifest.runtime) {
       this.logger.warn({ plugin: id }, 'plugin: no runtime config, skipping');
       return;
@@ -58,7 +58,12 @@ export class PluginHost {
   }
 
   registerMany(
-    plugins: Array<{ id: string; manifest: CodrynPluginManifest; dir: string; workspaceId: string }>,
+    plugins: Array<{
+      id: string;
+      manifest: CodrynPluginManifest;
+      dir: string;
+      workspaceId: string;
+    }>,
   ): void {
     for (const p of plugins) {
       this.register(p.id, p.manifest, p.dir, p.workspaceId);
@@ -199,10 +204,7 @@ export class PluginHost {
       if (!hookSubscribed) continue;
 
       entry.process.notify(method, payload).catch((err) => {
-        this.logger.warn(
-          { err, plugin: entry.id, hook: hookName },
-          'plugin hook dispatch failed',
-        );
+        this.logger.warn({ err, plugin: entry.id, hook: hookName }, 'plugin hook dispatch failed');
       });
     }
   }

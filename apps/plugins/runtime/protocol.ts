@@ -20,8 +20,7 @@ export const PluginHookMethods = {
   AFTER_EXECUTE: 'hooks/afterExecute',
 } as const;
 
-export type PluginHookMethod =
-  (typeof PluginHookMethods)[keyof typeof PluginHookMethods];
+export type PluginHookMethod = (typeof PluginHookMethods)[keyof typeof PluginHookMethods];
 
 export const PluginHookNames = {
   BEFORE_TOOL: 'beforeTool',
@@ -113,5 +112,4 @@ export const PluginErrorCode = {
   PLUGIN_CRASHED: -32005,
 } as const;
 
-export type PluginErrorCode =
-  (typeof PluginErrorCode)[keyof typeof PluginErrorCode];
+export type PluginErrorCode = (typeof PluginErrorCode)[keyof typeof PluginErrorCode];

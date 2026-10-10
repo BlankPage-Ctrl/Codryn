@@ -49,12 +49,7 @@ export interface PluginToolResult {
   message?: string;
 }
 
-export type PluginProcessState =
-  | 'spawning'
-  | 'initializing'
-  | 'ready'
-  | 'error'
-  | 'closed';
+export type PluginProcessState = 'spawning' | 'initializing' | 'ready' | 'error' | 'closed';
 
 export interface PluginProcessHandle {
   id: string;

@@ -89,9 +89,7 @@ function sendResponse(id, result) {
 }
 
 function sendError(id, code, message) {
-  process.stdout.write(
-    JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } }) + '\n',
-  );
+  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } }) + '\n');
 }
 
 rl.on('line', async (line) => {

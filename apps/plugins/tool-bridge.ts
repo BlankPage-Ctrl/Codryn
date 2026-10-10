@@ -32,18 +32,22 @@ export function createPluginTool(
       const toolCallId = opts?.toolCallId;
 
       if (tool.isSensitive || tool.destructive) {
-        const decision = await resolvePluginPermissionViaHitl(deps.hitl, {
-          plugin: pluginId,
-          tool: tool.name,
-          sensitive: tool.isSensitive,
-          destructive: tool.destructive,
-          argsPreview: JSON.stringify(argsObj).slice(0, 2_000),
-        }, {
-          workspaceId: deps.workspaceId,
-          chatId: deps.chatId,
-          toolCallId,
-          timeoutMs: deps.hitlTimeoutMs,
-        });
+        const decision = await resolvePluginPermissionViaHitl(
+          deps.hitl,
+          {
+            plugin: pluginId,
+            tool: tool.name,
+            sensitive: tool.isSensitive,
+            destructive: tool.destructive,
+            argsPreview: JSON.stringify(argsObj).slice(0, 2_000),
+          },
+          {
+            workspaceId: deps.workspaceId,
+            chatId: deps.chatId,
+            toolCallId,
+            timeoutMs: deps.hitlTimeoutMs,
+          },
+        );
 
         if (decision === 'deny') {
           return `**Plugin tool denied**: The user rejected the ${tool.name} tool call.`;

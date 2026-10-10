@@ -196,10 +196,7 @@ export async function registerPlugin(
   return entry;
 }
 
-export async function unregisterPlugin(
-  pluginId: string,
-  logger?: PluginLogger,
-): Promise<void> {
+export async function unregisterPlugin(pluginId: string, logger?: PluginLogger): Promise<void> {
   const id = normalizeId(pluginId);
   if (!id) throw new Error(`Invalid plugin id: ${pluginId}`);
 
@@ -235,9 +232,9 @@ export async function setPluginEnabled(
   return entry;
 }
 
-export async function loadRegisteredPlugins(logger?: PluginLogger): Promise<
-  Array<{ entry: PluginRegistryEntry; dir: string }>
-> {
+export async function loadRegisteredPlugins(
+  logger?: PluginLogger,
+): Promise<Array<{ entry: PluginRegistryEntry; dir: string }>> {
   const { entries } = await readRegistryFile(PLUGINS_REGISTRY_FILE, logger);
   return entries.map((entry) => ({
     entry,

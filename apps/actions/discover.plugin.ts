@@ -6,9 +6,7 @@ export interface DiscoverPluginsResult {
   plugins: DiscoveredPlugin[];
 }
 
-export async function discoverPlugins(
-  ctx: PluginActionCtx,
-): Promise<DiscoverPluginsResult> {
+export async function discoverPlugins(ctx: PluginActionCtx): Promise<DiscoverPluginsResult> {
   assertPluginsEnabled(ctx);
   const plugins = await discoverPluginsFs(ctx.logger as never);
   return { plugins };

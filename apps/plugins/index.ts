@@ -47,7 +47,11 @@ export { dedupeToolDecls, scanToolDeclarations } from './safety.js';
 export { buildPluginBootstrap, loadPluginStates, type PluginLoadResult } from './guard.js';
 export { PluginHost, type PluginHostOptions, type PluginHostEntry } from './host.js';
 export { createPluginTool, createPluginTools, type PluginToolBridgeDeps } from './tool-bridge.js';
-export { PluginProcess, type PluginProcessOptions, type PluginRuntimeConfig } from './runtime/process.js';
+export {
+  PluginProcess,
+  type PluginProcessOptions,
+  type PluginRuntimeConfig,
+} from './runtime/process.js';
 export {
   PluginMethods,
   PluginHookMethods,

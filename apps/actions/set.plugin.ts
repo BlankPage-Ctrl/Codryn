@@ -1,10 +1,10 @@
 import { NotFoundError } from '../shared/errors.js';
-import { loadRegisteredPlugins, setPluginEnabled as persistSetPluginEnabled } from '../plugins/index.js';
-import type { PluginState } from '../plugins/index.js';
 import {
-  assertPluginsEnabled,
-  type PluginActionCtx,
-} from './list.plugin.js';
+  loadRegisteredPlugins,
+  setPluginEnabled as persistSetPluginEnabled,
+} from '../plugins/index.js';
+import type { PluginState } from '../plugins/index.js';
+import { assertPluginsEnabled, type PluginActionCtx } from './list.plugin.js';
 import { getPlugin } from './get.plugin.js';
 
 export interface SetPluginEnabledParams {
