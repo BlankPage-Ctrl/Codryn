@@ -39,6 +39,18 @@ test('ignore engine: empty patterns ignore nothing', () => {
   assert.equal(filter.ignores('a.txt', false), false);
 });
 
+test('ignore engine: treats paths outside the root as ignored instead of throwing', () => {
+  const filter = new IgnoreFilter(['node_modules/']);
+  // `ignore` raises "path should be a path.relative()d string" for these.
+  assert.equal(filter.ignores('..', false), true);
+  assert.equal(filter.ignores('..', true), true);
+  assert.equal(filter.ignores('../outside.txt', false), true);
+  assert.equal(filter.ignores('../../a/b', true), true);
+  // A name that merely starts with dots is still a normal in-root path.
+  assert.equal(filter.ignores('..foo', false), false);
+  assert.equal(filter.ignores('..foo/bar', true), false);
+});
+
 test('listDir: filters .gitignore entries, keeps negated ones', async (t) => {
   const dir = await setup(t);
   await writeFile(join(dir, '.gitignore'), 'dist/\n*.log\n!important.log\n');

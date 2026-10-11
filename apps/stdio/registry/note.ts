@@ -13,12 +13,15 @@ import {
   deleteCategory,
 } from '../../actions/index.js';
 import {
-  NoteCreateSchema,
   NoteUpdateSchema,
   MovePositionSchema,
   CategoryCreateSchema,
 } from '../../../src/notes/index.js';
-import { ListNotesQuerySchema, RenameCategorySchema } from '../../validators/note.js';
+import {
+  ListNotesQuerySchema,
+  RenameCategorySchema,
+  validateCreateNote,
+} from '../../validators/note.js';
 import { act, IdSchema, type StdioMethod } from './types.js';
 
 const WorkspaceIdSchema = z.object({ workspaceId: IdSchema });
@@ -37,11 +40,10 @@ export const noteMethods: Record<string, StdioMethod> = {
   },
   'create.note': {
     kind: 'plain',
-    validate: (p) =>
-      z
-        .object({ workspaceId: IdSchema })
-        .merge(NoteCreateSchema.omit({ workspace_id: true }))
-        .parse(p),
+    validate: (p) => {
+      const workspaceId = IdSchema.parse((p as { workspaceId?: unknown }).workspaceId);
+      return { workspaceId, ...validateCreateNote(p) };
+    },
     run: act((ctx, p) =>
       createNote(ctx, {
         workspaceId: (p as { workspaceId: string }).workspaceId,

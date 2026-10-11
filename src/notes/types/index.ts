@@ -1,11 +1,13 @@
 export type { Note, NoteFilter, ListOpts, MovePosition, Priority } from './note.js';
 export {
   NoteCreateSchema,
+  NoteCreateBodySchema,
   NoteUpdateSchema,
   NoteFilterSchema,
   ListOptsSchema,
   MovePositionSchema,
   type NoteCreateInput,
+  type NoteCreateBodyInput,
   type NoteUpdateInput,
   type NoteFilterInput,
   type ListOptsInput,

@@ -7,6 +7,7 @@ export type {
   ListOpts,
   MovePosition,
   NoteCreateInput,
+  NoteCreateBodyInput,
   NoteUpdateInput,
   CategoryCreateInput,
   NoteFilterInput,
@@ -16,6 +17,7 @@ export type {
 
 export {
   NoteCreateSchema,
+  NoteCreateBodySchema,
   NoteUpdateSchema,
   NoteFilterSchema,
   ListOptsSchema,

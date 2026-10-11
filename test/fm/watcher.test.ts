@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { test } from 'node:test';
 import {
   NodeFileSystem,
@@ -41,7 +41,7 @@ async function setup(t: { after: (fn: () => void) => void }, name: string) {
     await watcher.stop();
     await rm(dir, { recursive: true, force: true });
   });
-  return { dir, events };
+  return { dir, watcher, events };
 }
 
 test('watcher: emits CREATED for a new file', async (t) => {
@@ -109,4 +109,22 @@ test('watcher: ignores node_modules and .git trees', async (t) => {
     (e) => e.node.path.includes('node_modules') || e.node.path.includes('.git'),
   );
   assert.deepEqual(leaked, []);
+});
+
+test('watcher: chokidar ignore hook drops paths outside the root', async (t) => {
+  const { watcher, dir } = await setup(t, 'outside');
+  // Chokidar derives watched paths with path.relative() against the watch
+  // root, so entries that escape it arrive as the parent dir or a sibling.
+  // Feeding those to `ignore` throws, which surfaced as an unhandledRejection.
+  const shouldIgnore = (candidate: string): boolean =>
+    (watcher as unknown as { shouldIgnoreByPath(p: string): boolean }).shouldIgnoreByPath(
+      candidate,
+    );
+
+  assert.equal(shouldIgnore(dir), false);
+  assert.equal(shouldIgnore(join(dir, 'src', 'index.ts')), false);
+  assert.equal(shouldIgnore(join(dir, '..foo', 'index.ts')), false);
+  assert.equal(shouldIgnore(dirname(dir)), true);
+  assert.equal(shouldIgnore(join(dir, '..', 'sibling.txt')), true);
+  assert.equal(shouldIgnore(tmpdir()), true);
 });

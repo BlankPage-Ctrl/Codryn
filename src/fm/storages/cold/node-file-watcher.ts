@@ -5,7 +5,7 @@ import type { IFileWatcher } from '../../types/file-watcher.js';
 import { FileType, WatchEventType, type WatchEvent } from '../../types/index.js';
 import { checkHasChildren } from '../../utils/fs.js';
 import { buildDeletedFileNode, buildFileNode } from '../../utils/node.js';
-import { toRelativePath, isOutsideRelative } from '../../utils/path.js';
+import { toRelativePath, isOutsideDisplayPath, isOutsideRelative } from '../../utils/path.js';
 import { IgnoreFilter } from '../../engines/ignore.js';
 import { DEFAULT_IGNORE_PATTERNS, type IgnoreOptions } from '../../types/ignore.js';
 
@@ -108,6 +108,9 @@ export class NodeFileWatcher implements IFileWatcher {
     const resolved = path.resolve(this.workspaceRoot, absPath);
     const relPath = toRelativePath(this.workspaceRoot, resolved);
     if (relPath === '/') return false;
+    // Chokidar can hand us paths outside the watch root; those are never part
+    // of the workspace, so drop them instead of matching them.
+    if (isOutsideDisplayPath(relPath)) return true;
     // Chokidar may call this without stats, so check both variants.
     return this.ignoreFilter.ignores(relPath, false) || this.ignoreFilter.ignores(relPath, true);
   }
@@ -176,6 +179,7 @@ export class NodeFileWatcher implements IFileWatcher {
   private isIgnored(absolutePath: string, isDirectory: boolean): boolean {
     const relPath = toRelativePath(this.workspaceRoot, absolutePath);
     if (relPath === '/') return false;
+    if (isOutsideDisplayPath(relPath)) return true;
     return this.ignoreFilter.ignores(relPath, isDirectory);
   }
 
