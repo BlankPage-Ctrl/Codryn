@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { z } from 'zod';
 import { InvalidToolInputError } from 'ai';
 import { formatToolChunkError } from '../../src/agent/adapters/chunk-error.js';
+import { mapAiError } from '../../apps/shared/ai-errors/index.js';
 
 test('chunk error: zod-style issues name the fields', () => {
   const err = {
@@ -39,9 +40,12 @@ test('chunk error: real InvalidToolInputError with real ZodError cause', () => {
   }
 });
 
-test('chunk error: non-validation errors stay redacted', () => {
-  assert.equal(formatToolChunkError(new Error('connection reset by peer')), 'An error occurred.');
-  assert.equal(formatToolChunkError('boom'), 'An error occurred.');
+test('chunk error: non-validation errors keep their signal for downstream mapping', () => {
+  // Provider/network text must survive: the outer stream onError re-maps it
+  // via mapAiError (oops/run-close -> user banner). Redacting it here used
+  // to leak a generic INTERNAL_ERROR ("An error occurred.") to the user.
+  assert.equal(formatToolChunkError(new Error('connection reset by peer')), 'connection reset by peer');
+  assert.equal(formatToolChunkError('boom'), 'boom');
   assert.equal(formatToolChunkError(null), 'An error occurred.');
   assert.equal(formatToolChunkError({ code: 'SOME_SERVER_FAULT' }), 'An error occurred.');
 });
@@ -54,4 +58,13 @@ test('chunk error: validation without issues falls back to message', () => {
   });
   assert.ok(out.includes('`read_file`'));
   assert.ok(out.includes('something odd'));
+});
+
+test('chunk error: provider signal survives the user-banner chain', () => {
+  // Chain: stream `error` chunk -> inner onError (formatToolChunkError) ->
+  // UIMessage `error` chunk -> outer onError -> mapAiError -> oops/run-close.
+  const innerText = formatToolChunkError(new Error('fetch failed: socket hang up'));
+  const mapped = mapAiError(new Error(innerText), { chatId: 'chat_1' });
+  assert.equal(mapped.code, 'PROVIDER_UNAVAILABLE');
+  assert.ok(!mapped.message.includes('An error occurred.'));
 });
