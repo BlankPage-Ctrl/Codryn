@@ -266,6 +266,7 @@ export async function startMessageRun(
                 workspaceRoot: workspace.projectPath,
                 assistantMessageId,
                 runId,
+                ...(abortSignal ? { signal: abortSignal } : {}),
                 mode,
                 mcpTools,
                 pluginTools: pluginLoad.tools,

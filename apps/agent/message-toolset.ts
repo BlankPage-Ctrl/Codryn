@@ -46,6 +46,7 @@ export interface MessageToolsetDeps {
   workspaceRoot: string;
   assistantMessageId: string;
   runId: string;
+  signal?: AbortSignal;
   mode: AgentMode;
   mcpTools: AgentTool[];
   pluginTools?: AgentTool[];
@@ -95,6 +96,7 @@ export function buildMessageRunToolset(deps: MessageToolsetDeps): AgentTool[] {
     resolveShellPermissionViaHitl(hitlService, pending, {
       workspaceRoot,
       logger,
+      signal: deps.signal,
     });
   const tools: AgentTool[] = [
     ...createListFilesTool(fm.listDirService, {
@@ -152,6 +154,8 @@ export function buildMessageRunToolset(deps: MessageToolsetDeps): AgentTool[] {
     ...(deps.shellEnabled
       ? createShellTool(deps.shellConsumer, {
           chatId,
+          runId,
+          ...(deps.signal ? { signal: deps.signal } : {}),
           resolvePermission: shellResolver,
           onRichResult: deps.onRichResult,
         })

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -46,7 +47,7 @@ async function killWhenLive(svc: ShellService, executionId: string): Promise<boo
   }
 }
 
-test('kill: running process is SIGKILLed and run resolves with signal', async (t) => {
+test('kill: running process is SIGKILLed and run resolves as SHELL_KILLED', async (t) => {
   const root = await tempRoot(t);
   const svc = makeService();
   const executionId = randomUUID();
@@ -59,10 +60,10 @@ test('kill: running process is SIGKILLed and run resolves with signal', async (t
   assert.equal(await killWhenLive(svc, executionId), true);
 
   const outcome = await pending;
-  assert.equal(outcome.ok, true);
-  if (!outcome.ok) return;
+  assert.equal(outcome.ok, false);
+  if (outcome.ok) return;
   assert.equal(outcome.executionId, executionId);
-  assert.equal(outcome.data.signal, 'SIGKILL');
+  assert.equal(outcome.error.code, 'SHELL_KILLED');
 
   // Registry entry is gone: second kill is a no-op, not an error.
   assert.deepEqual(svc.killRun(executionId), { executionId, killed: false });
@@ -104,9 +105,9 @@ test('kill: killAllRuns terminates every live run', async (t) => {
 
   const outcomes = await Promise.all(pendings);
   for (const outcome of outcomes) {
-    assert.equal(outcome.ok, true);
-    if (!outcome.ok) continue;
-    assert.equal(outcome.data.signal, 'SIGKILL');
+    assert.equal(outcome.ok, false);
+    if (outcome.ok) continue;
+    assert.equal(outcome.error.code, 'SHELL_KILLED');
   }
   assert.deepEqual(svc.killAllRuns(), { killedCount: 0 });
 });
@@ -144,4 +145,140 @@ test('kill: generated id is used when caller provides none', async (t) => {
   assert.equal(r.ok, true);
   if (!r.ok) return;
   assert.match(r.executionId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+});
+
+test('kill: killRunsForRun only kills runs of that run id', async (t) => {
+  const root = await tempRoot(t);
+  const svc = makeService();
+
+  const pendingA = svc.run(
+    { command: SLEEP_COMMAND, cwd: root, policy: ALLOW_POLICY, executionId: randomUUID() },
+    { workspaceId: 'ws-1', chatId: 'chat-1', runId: 'run-a' },
+  );
+  const pendingB = svc.run(
+    { command: SLEEP_COMMAND, cwd: root, policy: ALLOW_POLICY, executionId: randomUUID() },
+    { workspaceId: 'ws-1', chatId: 'chat-1', runId: 'run-b' },
+  );
+
+  // Wait until both processes spawned: killRunsForRun only sees tracked runs.
+  const deadline = Date.now() + 10_000;
+  let swept = svc.killRunsForRun('run-a');
+  while (swept.killedCount !== 1 && Date.now() <= deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+    swept = svc.killRunsForRun('run-a');
+  }
+  assert.equal(swept.killedCount, 1);
+
+  const outcomeA = await pendingA;
+  assert.equal(outcomeA.ok, false);
+  if (!outcomeA.ok) assert.equal(outcomeA.error.code, 'SHELL_KILLED');
+
+  // The other run is untouched: kill it directly to finish the test.
+  assert.deepEqual(svc.killRunsForRun('run-a'), { killedCount: 0 });
+  assert.deepEqual(svc.killRunsForRun('run-b'), { killedCount: 1 });
+  const outcomeB = await pendingB;
+  assert.equal(outcomeB.ok, false);
+  if (!outcomeB.ok) assert.equal(outcomeB.error.code, 'SHELL_KILLED');
+});
+
+test('kill: aborted signal resolves as SHELL_KILLED without spawning late', async (t) => {
+  const root = await tempRoot(t);
+  const svc = makeService();
+  const controller = new AbortController();
+  controller.abort();
+
+  const outcome = await svc.run(
+    { command: SLEEP_COMMAND, cwd: root, policy: ALLOW_POLICY, signal: controller.signal },
+    { workspaceId: 'ws-1', chatId: 'chat-1', runId: 'run-x' },
+  );
+  assert.equal(outcome.ok, false);
+  if (outcome.ok) return;
+  assert.equal(outcome.error.code, 'SHELL_KILLED');
+});
+
+test('kill: cancelPendingForRun aborts waiting approvals as SHELL_KILLED', async (t) => {
+  const root = await tempRoot(t);
+  const svc = makeService();
+  const askPolicy: TerminalPolicy = { mode: 'ask', allow: [], ask: [], deny: [] };
+
+  const pending = await svc.run(
+    { command: 'touch test.txt', cwd: root, policy: askPolicy },
+    { workspaceId: 'ws-1', chatId: 'chat-1', runId: 'run-p' },
+  );
+  assert.equal(pending.ok, false);
+  if (pending.ok) return;
+  assert.equal(pending.error.code, 'REQUIRES_APPROVAL');
+
+  const cancelled = await svc.cancelPendingForRun('run-p');
+  assert.equal(cancelled.cancelledCount, 1);
+  assert.equal((await svc.cancelPendingForRun('run-p')).cancelledCount, 0);
+  assert.equal((await svc.cancelPendingForRun('other-run')).cancelledCount, 0);
+});
+
+/** Distinctive sleep durations so `ps` matches cannot collide with the host. */
+const TREE_SLEEP = 'sleep 47';
+const TIMEOUT_SLEEP = 'sleep 48';
+
+function liveProcessArgs(): string {
+  try {
+    return execSync('ps -eo args', { encoding: 'utf-8' });
+  } catch {
+    return '';
+  }
+}
+
+async function waitForProcessGone(marker: string, timeoutMs = 10_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const args = liveProcessArgs();
+    const stillThere = args
+      .split('\n')
+      .some((line) => line.includes(marker) && !line.includes('ps -eo'));
+    if (!stillThere) return true;
+    if (Date.now() > deadline) return false;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+test('kill: the whole process tree dies, not just the wrapper shell', async (t) => {
+  if (process.platform === 'win32') {
+    t.skip('process-group kill is POSIX-only');
+    return;
+  }
+  const root = await tempRoot(t);
+  const svc = makeService();
+  const executionId = randomUUID();
+
+  const pending = svc.run(
+    { command: TREE_SLEEP, cwd: root, policy: ALLOW_POLICY, executionId },
+    { workspaceId: 'ws-1', chatId: 'chat-1' },
+  );
+
+  assert.equal(await killWhenLive(svc, executionId), true);
+  const outcome = await pending;
+  assert.equal(outcome.ok, false);
+  if (outcome.ok) return;
+  assert.equal(outcome.error.code, 'SHELL_KILLED');
+
+  // The `sleep` child of the wrapper shell must be gone too, not orphaned.
+  assert.equal(await waitForProcessGone(TREE_SLEEP), true);
+});
+
+test('timeout: expiry kills the whole process tree and reports timedOut', async (t) => {
+  if (process.platform === 'win32') {
+    t.skip('process-group kill is POSIX-only');
+    return;
+  }
+  const root = await tempRoot(t);
+  const svc = makeService();
+
+  const outcome = await svc.run(
+    { command: TIMEOUT_SLEEP, cwd: root, policy: ALLOW_POLICY, timeoutMs: 800 },
+    { workspaceId: 'ws-1', chatId: 'chat-1' },
+  );
+  assert.equal(outcome.ok, true);
+  if (!outcome.ok) return;
+  assert.equal(outcome.data.timedOut, true);
+
+  assert.equal(await waitForProcessGone(TIMEOUT_SLEEP), true);
 });

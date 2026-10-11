@@ -1,4 +1,5 @@
 import type { IHitlService } from '../../src/human-in-the-loop/index.js';
+import { CancelledError } from '../../src/human-in-the-loop/index.js';
 import type {
   ShellPendingApproval,
   ShellOutcome,
@@ -18,6 +19,7 @@ export interface ShellPermissionResolverOptions {
   allowlistPattern?: (perm: ShellPermissionInput) => string | null | undefined;
   /** Optional logger (file-backed). Falls back to console (captured by the console bridge). */
   logger?: Logger;
+  signal?: AbortSignal;
 }
 
 function isApproved(outcome: string | undefined): boolean {
@@ -132,6 +134,17 @@ export async function resolveShellPermissionViaHitl(
     }
     return pending.abort();
   } catch (err) {
+    if (err instanceof CancelledError || options.signal?.aborted) {
+      return {
+        ok: false,
+        error: {
+          code: 'SHELL_KILLED',
+          message: 'Shell execution stopped by user before approval completed',
+          requiresApproval: false,
+        },
+        executionId: perm.executionId,
+      };
+    }
     log.warn(
       { sensitive: true, command: perm.command, executionId: perm.executionId, err },
       '[shell-permission] HITL request failed, aborting shell',

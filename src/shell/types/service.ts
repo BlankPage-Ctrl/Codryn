@@ -21,12 +21,19 @@ export interface ShellRunOptions {
    * unique per run; when absent the service generates one.
    */
   executionId?: string;
+  /**
+   * Optional abort signal for user cancellation. When aborted (before or
+   * during execution) the run is SIGKILLed and reported as `SHELL_KILLED`
+   * instead of a success result.
+   */
+  signal?: AbortSignal;
 }
 
 export interface ShellRunMeta {
   toolCallId?: string | null;
   workspaceId?: string | null;
   chatId?: string | null;
+  runId?: string | null;
 }
 
 export interface ShellAllowedOutcome {
@@ -129,4 +136,15 @@ export interface IShellService {
   killRun(executionId: string): ShellKillResult;
   /** Best-effort kill of every live run. Used on shutdown. Never throws. */
   killAllRuns(): ShellKillAllResult;
+  /**
+   * Best-effort kill of every live run started under one agent run id.
+   * Never throws; used when the user cancels a message run.
+   */
+  killRunsForRun(runId: string): ShellKillAllResult;
+  /**
+   * Best-effort abort of every approval-pending shell started under one
+   * agent run id. Each pending run is reported as `SHELL_KILLED`.
+   * Never throws; used when the user cancels a message run.
+   */
+  cancelPendingForRun(runId: string): Promise<{ cancelledCount: number }>;
 }

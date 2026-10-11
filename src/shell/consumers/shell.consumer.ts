@@ -14,6 +14,7 @@ export interface ShellRunConsumerOptions {
   timeoutMs?: number;
   maxOutputChars?: number;
   executionId?: string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -57,6 +58,7 @@ export class ShellConsumer {
       ...meta,
       workspaceId: this.workspaceId ?? meta?.workspaceId ?? null,
       chatId: meta?.chatId ?? null,
+      runId: meta?.runId ?? null,
     };
 
     return this.service.run(
@@ -67,6 +69,7 @@ export class ShellConsumer {
         timeoutMs: opts.timeoutMs,
         maxOutputChars: opts.maxOutputChars,
         executionId: opts.executionId,
+        ...(opts.signal ? { signal: opts.signal } : {}),
       },
       merged,
     );
@@ -80,5 +83,15 @@ export class ShellConsumer {
   /** Best-effort kill of every live run. */
   killAllRuns(): ShellKillAllResult {
     return this.service.killAllRuns();
+  }
+
+  /** Best-effort kill of every live run started under one agent run id. */
+  killRunsForRun(runId: string): ShellKillAllResult {
+    return this.service.killRunsForRun(runId);
+  }
+
+  /** Best-effort abort of approval-pending shells started under one run id. */
+  cancelPendingForRun(runId: string): Promise<{ cancelledCount: number }> {
+    return this.service.cancelPendingForRun(runId);
   }
 }
