@@ -9,6 +9,7 @@ import type { PluginCaps, PluginLogger } from './types.js';
  *
  * The plugin tells Codryn what it contains through `codryn-plugin.json`
  * plus `skills/<name>/SKILL.md` (Agent Skills open standard). A directory
+ * with a manifest but no skills loads as a tools-only plugin. A directory
  * with skills but no manifest still loads as `bare` with conservative
  * defaults so plain skill folders keep working.
  */
@@ -90,29 +91,26 @@ export async function scanPluginCaps(
 
   const loaded = await loadCodrynManifest(dir);
   const notices = [...loaded.notices];
-  const skillNames = await listSkillNames(dir, logger);
-  if (skillNames.length === 0) return null;
 
   const manifest = loaded.manifest;
   if (manifest && manifest.id !== id) {
     notices.push(`manifest id "${manifest.id}" does not match registry id "${id}".`);
   }
 
-  const maxSkills = manifest?.limits.maxSkills ?? 40;
-  const maxSkillBytes = manifest?.limits.maxSkillBytes ?? MAX_SKILL_SCAN_BYTES;
-  let kept = skillNames;
-  if (kept.length > maxSkills) {
-    notices.push(`skill list capped at ${maxSkills} (found ${kept.length}).`);
-    kept = kept.slice(0, maxSkills);
-  }
-  const flags = await scanSkillBodies(dir, kept, maxSkillBytes);
-  const skills = kept.filter((name) => !flags.rejected.includes(name));
-  if (flags.rejected.length > 0) {
-    notices.push(`rejected non-text or oversized skills: ${flags.rejected.join(', ')}.`);
-  }
-  if (skills.length === 0) return null;
-
+  const skillNames = await listSkillNames(dir, logger);
   if (manifest) {
+    const maxSkills = manifest.limits.maxSkills;
+    const maxSkillBytes = manifest.limits.maxSkillBytes;
+    let kept = skillNames;
+    if (kept.length > maxSkills) {
+      notices.push(`skill list capped at ${maxSkills} (found ${kept.length}).`);
+      kept = kept.slice(0, maxSkills);
+    }
+    const flags = await scanSkillBodies(dir, kept, maxSkillBytes);
+    const skills = kept.filter((name) => !flags.rejected.includes(name));
+    if (flags.rejected.length > 0) {
+      notices.push(`rejected non-text or oversized skills: ${flags.rejected.join(', ')}.`);
+    }
     const tools = dedupeToolDecls(manifest.tools);
     notices.push(...scanToolDeclarations(manifest.tools));
     return {
@@ -128,6 +126,18 @@ export async function scanPluginCaps(
       notices,
     };
   }
+
+  if (skillNames.length === 0) return null;
+
+  const maxSkills = 40;
+  const maxSkillBytes = MAX_SKILL_SCAN_BYTES;
+  let kept = skillNames;
+  const flags = await scanSkillBodies(dir, kept, maxSkillBytes);
+  const skills = kept.filter((name) => !flags.rejected.includes(name));
+  if (flags.rejected.length > 0) {
+    notices.push(`rejected non-text or oversized skills: ${flags.rejected.join(', ')}.`);
+  }
+  if (skills.length === 0) return null;
 
   notices.push('no codryn-plugin.json; loaded as a bare skills directory with scanned defaults.');
   return {

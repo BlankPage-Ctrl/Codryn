@@ -17,26 +17,20 @@ export const PluginToolDeclSchema = z.object({
 
 export type PluginToolDecl = z.infer<typeof PluginToolDeclSchema>;
 
-const PluginPermissionsSchema = z
-  .object({
-    shell: z.boolean().default(false),
-    network: z.boolean().default(false),
-    sensitive: z.boolean().default(false),
-  })
-  .default({ shell: false, network: false, sensitive: false });
+const PluginPermissionsSchema = z.object({
+  shell: z.boolean().default(false),
+  network: z.boolean().default(false),
+  sensitive: z.boolean().default(false),
+});
 
-const PluginLifecycleSchema = z
-  .object({
-    bootstrap: z.string().trim().min(1).max(4_000).optional(),
-  })
-  .default({});
+const PluginLifecycleSchema = z.object({
+  bootstrap: z.string().trim().min(1).max(4_000).optional(),
+});
 
-const PluginLimitsSchema = z
-  .object({
-    maxSkills: z.number().int().min(1).max(200).default(40),
-    maxSkillBytes: z.number().int().min(1_024).max(5_000_000).default(1_000_000),
-  })
-  .default({ maxSkills: 40, maxSkillBytes: 1_000_000 });
+const PluginLimitsSchema = z.object({
+  maxSkills: z.number().int().min(1).max(200).default(40),
+  maxSkillBytes: z.number().int().min(1_024).max(5_000_000).default(1_000_000),
+});
 
 const PluginRuntimeSchema = z
   .object({
@@ -47,19 +41,12 @@ const PluginRuntimeSchema = z
   })
   .optional();
 
-const PluginHooksSchema = z
-  .object({
-    beforeTool: z.boolean().default(false),
-    afterTool: z.boolean().default(false),
-    beforeExecute: z.boolean().default(false),
-    afterExecute: z.boolean().default(false),
-  })
-  .default({
-    beforeTool: false,
-    afterTool: false,
-    beforeExecute: false,
-    afterExecute: false,
-  });
+const PluginHooksSchema = z.object({
+  beforeTool: z.boolean().default(false),
+  afterTool: z.boolean().default(false),
+  beforeExecute: z.boolean().default(false),
+  afterExecute: z.boolean().default(false),
+});
 
 export const CodrynPluginManifestSchema = z
   .object({
@@ -74,11 +61,20 @@ export const CodrynPluginManifestSchema = z
     description: z.string().trim().min(1).max(1_024),
     author: z.string().trim().max(120).optional(),
     license: z.string().trim().max(80).optional(),
-    permissions: PluginPermissionsSchema,
-    lifecycle: PluginLifecycleSchema,
-    limits: PluginLimitsSchema,
+    permissions: PluginPermissionsSchema.default({
+      shell: false,
+      network: false,
+      sensitive: false,
+    }),
+    lifecycle: PluginLifecycleSchema.default({}),
+    limits: PluginLimitsSchema.default({ maxSkills: 40, maxSkillBytes: 1_000_000 }),
     runtime: PluginRuntimeSchema,
-    hooks: PluginHooksSchema,
+    hooks: PluginHooksSchema.default({
+      beforeTool: false,
+      afterTool: false,
+      beforeExecute: false,
+      afterExecute: false,
+    }),
     tools: z.array(PluginToolDeclSchema).max(MAX_TOOLS).default([]),
   })
   .passthrough();

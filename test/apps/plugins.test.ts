@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import {
   buildPluginBootstrap,
   dedupeToolDecls,
+  discoverPlugins,
   isPluginEnabled,
   loadCodrynManifest,
   loadPluginDirSkills,
@@ -238,7 +239,7 @@ test('guard: states degrade to slots; only bootstrap text reaches the prompt', a
     assert.equal(skills[0]?.name, 'g-skill');
 
     const fresh = await loadPluginStates(projectPath, 'ws1', memSettings());
-    const good = fresh.states.find((s) => s.caps?.bootstrap);
+    const good = fresh.states.find((s) => s.id === 'good');
     assert.ok(good);
     assert.equal(buildPluginBootstrap([good]), 'Brainstorm first.');
 
@@ -645,6 +646,59 @@ test('registry: setPluginEnabled toggles plugin state', async () => {
 
     await unregisterPlugin('toggle-plugin');
   } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('manifest: optional sections default when omitted (regression: NO MANIFEST)', async () => {
+  const tmp = mkdtempSync(path.join(tmpdir(), 'plugins-optional-'));
+  try {
+    const dir = path.join(tmp, 'opt');
+    writeManifest(dir, baseManifest({ id: 'opt' }));
+
+    const loaded = await loadCodrynManifest(dir);
+    assert.ok(loaded.manifest);
+    assert.equal(loaded.manifest.id, 'opt');
+    assert.deepEqual(loaded.manifest.permissions, {
+      shell: false,
+      network: false,
+      sensitive: false,
+    });
+    assert.deepEqual(loaded.manifest.limits, { maxSkills: 40, maxSkillBytes: 1_000_000 });
+    assert.deepEqual(loaded.manifest.hooks, {
+      beforeTool: false,
+      afterTool: false,
+      beforeExecute: false,
+      afterExecute: false,
+    });
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discover: registered custom path validates manifest (regression: NO MANIFEST)', async () => {
+  const tmp = mkdtempSync(path.join(tmpdir(), 'plugins-discover-'));
+  const pluginId = 'discover-custom-path';
+  try {
+    const pluginDir = path.join(tmp, 'custom-dir');
+    writeManifest(pluginDir, {
+      ...baseManifest({ id: pluginId }),
+      permissions: { shell: false, network: true, sensitive: false },
+      lifecycle: { bootstrap: 'Custom path plugin.' },
+      limits: { maxSkills: 40, maxSkillBytes: 1_000_000 },
+      hooks: { beforeTool: true },
+    });
+
+    await unregisterPlugin(pluginId).catch(() => {});
+    await registerPlugin(pluginId, pluginDir);
+
+    const found = (await discoverPlugins()).find((d) => d.id === pluginId);
+    assert.ok(found);
+    assert.equal(found.registered, true);
+    assert.equal(found.dir, pluginDir);
+    assert.equal(found.manifestValid, true);
+  } finally {
+    await unregisterPlugin(pluginId).catch(() => {});
     rmSync(tmp, { recursive: true, force: true });
   }
 });

@@ -112,20 +112,10 @@ export async function loadPluginStates(
       tools: capped.tools,
       notices: [...caps.notices, ...capped.notices],
     };
-    if (effectiveCaps.skills.length === 0) {
-      states.push({
-        id: entry.id,
-        path: dir,
-        source: 'local',
-        enabled: true,
-        status: 'error',
-        error: 'Plugin has no skills after server limits were applied.',
-        caps: null,
-      });
-      continue;
+    if (effectiveCaps.skills.length > 0) {
+      const dirSkills = await loadPluginDirSkills(entry.id, dir, effectiveCaps.skills, logger);
+      skills.push(...dirSkills);
     }
-    const dirSkills = await loadPluginDirSkills(entry.id, dir, effectiveCaps.skills, logger);
-    skills.push(...dirSkills);
     states.push({
       id: entry.id,
       path: dir,

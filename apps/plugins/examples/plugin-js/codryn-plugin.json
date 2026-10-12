@@ -11,6 +11,10 @@
   "lifecycle": {
     "bootstrap": "Use this tool to scan for security issues and fetch advisories."
   },
+  "limits": {
+    "maxSkills": 40,
+    "maxSkillBytes": 1000000
+  },
   "runtime": {
     "command": "node",
     "args": ["./plugin.js"],

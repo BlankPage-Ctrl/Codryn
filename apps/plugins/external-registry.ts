@@ -103,13 +103,21 @@ async function writeRegistryFile(
 export async function discoverPlugins(logger?: PluginLogger): Promise<DiscoveredPlugin[]> {
   const discovered: DiscoveredPlugin[] = [];
   const dirsToCheck: string[] = [];
+  const seenDirs = new Set<string>();
+
+  function pushDir(dir: string): void {
+    const normalized = path.normalize(dir);
+    if (seenDirs.has(normalized)) return;
+    seenDirs.add(normalized);
+    dirsToCheck.push(normalized);
+  }
 
   // Scan plugins directory
   try {
     const entries = await fs.readdir(PLUGINS_DIR, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        dirsToCheck.push(path.join(PLUGINS_DIR, entry.name));
+        pushDir(path.join(PLUGINS_DIR, entry.name));
       }
     }
   } catch {
@@ -119,22 +127,56 @@ export async function discoverPlugins(logger?: PluginLogger): Promise<Discovered
   // Read registry
   const { entries: registryEntries } = await readRegistryFile(PLUGINS_REGISTRY_FILE, logger);
   const registryById = new Map(registryEntries.map((e) => [e.id, e]));
+  const registryByDir = new Map<string, PluginRegistryEntry>();
+  for (const entry of registryEntries) {
+    const resolved = path.normalize(resolvePluginDir(entry));
+    registryByDir.set(resolved, entry);
+    // Include registered custom paths so their manifest gets validated too.
+    pushDir(resolved);
+  }
 
-  // Check each discovered directory
+  const seenIds = new Map<string, number>();
+
+  // Check each directory (both scanned and registered custom paths)
   for (const dir of dirsToCheck) {
-    const id = path.basename(dir);
-    const normalizedId = normalizeId(id);
-    if (!normalizedId) continue;
+    const normalizedDir = path.normalize(dir);
+    const byDir = registryByDir.get(normalizedDir);
+    let id: string | null = byDir ? byDir.id : null;
+    if (!id) {
+      id = normalizeId(path.basename(normalizedDir));
+      if (!id) continue;
+    }
 
-    const registryEntry = registryById.get(normalizedId);
-    const manifestPath = path.join(dir, 'codryn-plugin.json');
+    const registryEntry = registryById.get(id) ?? byDir;
     const notices: string[] = [];
     let manifestValid = false;
 
     try {
+      await fs.stat(normalizedDir);
+    } catch {
+      notices.push('Plugin directory not found.');
+      const record: DiscoveredPlugin = {
+        id,
+        dir: normalizedDir,
+        registered: registryEntry !== undefined,
+        enabled: registryEntry?.enabled ?? true,
+        manifestValid: false,
+        notices,
+      };
+      const existingIdx = seenIds.get(id);
+      if (existingIdx !== undefined) discovered[existingIdx] = record;
+      else {
+        seenIds.set(id, discovered.length);
+        discovered.push(record);
+      }
+      continue;
+    }
+
+    const manifestPath = path.join(normalizedDir, 'codryn-plugin.json');
+    try {
       const stat = await fs.stat(manifestPath);
       if (stat.isFile()) {
-        const { manifest, notices: manifestNotices } = await loadCodrynManifest(dir);
+        const { manifest, notices: manifestNotices } = await loadCodrynManifest(normalizedDir);
         manifestValid = manifest !== null;
         notices.push(...manifestNotices);
         if (!manifestValid) {
@@ -147,27 +189,21 @@ export async function discoverPlugins(logger?: PluginLogger): Promise<Discovered
       notices.push('No codryn-plugin.json found.');
     }
 
-    discovered.push({
-      id: normalizedId,
-      dir,
+    const record: DiscoveredPlugin = {
+      id,
+      dir: normalizedDir,
       registered: registryEntry !== undefined,
       enabled: registryEntry?.enabled ?? true,
       manifestValid,
       notices,
-    });
-  }
-
-  // Also include registered plugins whose directories are missing
-  for (const entry of registryEntries) {
-    if (!discovered.some((d) => d.id === entry.id)) {
-      discovered.push({
-        id: entry.id,
-        dir: resolvePluginDir(entry),
-        registered: true,
-        enabled: entry.enabled,
-        manifestValid: false,
-        notices: ['Plugin directory not found.'],
-      });
+    };
+    const existingIdx = seenIds.get(id);
+    if (existingIdx !== undefined) {
+      // Prefer the explicitly registered location on id collision.
+      if (byDir) discovered[existingIdx] = record;
+    } else {
+      seenIds.set(id, discovered.length);
+      discovered.push(record);
     }
   }
 
