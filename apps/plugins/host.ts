@@ -160,22 +160,17 @@ export class PluginHost {
     return null;
   }
 
-  /** Tool names are "pluginId__toolName". */
+  /** Tool names are "pluginId__toolName". The child process only knows the bare name. */
   async callTool(
     namespacedToolName: string,
     args: Record<string, unknown>,
     toolCallId?: string,
   ): Promise<{ ok: boolean; text: string; code?: string; message?: string }> {
-    const entry = this.findPluginForTool(namespacedToolName);
-    if (!entry) {
-      const match = namespacedToolName.match(/^([a-z0-9-]+)__([a-z0-9_-]+)$/i);
-      if (match) {
-        const [, pluginId] = match;
-        const pluginEntry = this.plugins.get(pluginId);
-        if (pluginEntry?.process?.isReady) {
-          return pluginEntry.process.callTool(namespacedToolName, args, toolCallId);
-        }
-      }
+    const match = namespacedToolName.match(/^([a-z0-9-]+)__([a-z0-9_-]+)$/i);
+    const pluginId = match?.[1];
+    const bareName = match?.[2] ?? namespacedToolName;
+    const entry = this.findPluginForTool(bareName) ?? (pluginId ? this.plugins.get(pluginId) : undefined);
+    if (!entry?.process?.isReady) {
       return {
         ok: false,
         text: `Tool ${namespacedToolName} not found`,
@@ -184,7 +179,7 @@ export class PluginHost {
       };
     }
 
-    return entry.process!.callTool(namespacedToolName, args, toolCallId);
+    return entry.process.callTool(bareName, args, toolCallId);
   }
 
   /**

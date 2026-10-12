@@ -17,8 +17,7 @@
   },
   "runtime": {
     "command": "node",
-    "args": ["./plugin.js"],
-    "cwd": "."
+    "args": ["./plugin.js"]
   },
   "hooks": {
     "beforeTool": true,

@@ -8,6 +8,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import path from 'node:path';
 import type { Logger } from '../../shared/types.js';
 import {
   PluginMethods,
@@ -116,9 +117,12 @@ export class PluginProcess extends EventEmitter {
     this.lastActivityAt = Date.now();
 
     const { command, args, cwd, env } = this.opts.runtime;
+    // Relative runtime cwd is resolved against the plugin directory, not the
+    // backend process cwd. A bare "." therefore keeps the plugin dir.
+    const spawnCwd = !cwd || cwd.trim() === '' ? this.cwd : path.isAbsolute(cwd) ? cwd : path.resolve(this.cwd, cwd);
 
     this.child = spawn(command, args, {
-      cwd: cwd ?? this.cwd,
+      cwd: spawnCwd,
       env: { ...process.env, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
