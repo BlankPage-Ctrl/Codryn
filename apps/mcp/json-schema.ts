@@ -60,8 +60,7 @@ function convert(schema: unknown): z.ZodTypeAny | null {
         const field = convert(prop) ?? z.unknown();
         shape[key] = required.has(key) ? field : field.optional();
       }
-      const base =
-        s.additionalProperties === false ? z.object(shape).strict() : z.object(shape);
+      const base = s.additionalProperties === false ? z.object(shape).strict() : z.object(shape);
       return withMeta(base, s);
     }
     default:

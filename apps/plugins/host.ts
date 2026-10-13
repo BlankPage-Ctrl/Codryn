@@ -169,7 +169,8 @@ export class PluginHost {
     const match = namespacedToolName.match(/^([a-z0-9-]+)__([a-z0-9_-]+)$/i);
     const pluginId = match?.[1];
     const bareName = match?.[2] ?? namespacedToolName;
-    const entry = this.findPluginForTool(bareName) ?? (pluginId ? this.plugins.get(pluginId) : undefined);
+    const entry =
+      this.findPluginForTool(bareName) ?? (pluginId ? this.plugins.get(pluginId) : undefined);
     if (!entry?.process?.isReady) {
       return {
         ok: false,

@@ -119,7 +119,12 @@ export class PluginProcess extends EventEmitter {
     const { command, args, cwd, env } = this.opts.runtime;
     // Relative runtime cwd is resolved against the plugin directory, not the
     // backend process cwd. A bare "." therefore keeps the plugin dir.
-    const spawnCwd = !cwd || cwd.trim() === '' ? this.cwd : path.isAbsolute(cwd) ? cwd : path.resolve(this.cwd, cwd);
+    const spawnCwd =
+      !cwd || cwd.trim() === ''
+        ? this.cwd
+        : path.isAbsolute(cwd)
+          ? cwd
+          : path.resolve(this.cwd, cwd);
 
     this.child = spawn(command, args, {
       cwd: spawnCwd,

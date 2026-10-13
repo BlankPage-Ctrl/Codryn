@@ -131,7 +131,7 @@ export async function scanPluginCaps(
 
   const maxSkills = 40;
   const maxSkillBytes = MAX_SKILL_SCAN_BYTES;
-  let kept = skillNames;
+  const kept = skillNames;
   const flags = await scanSkillBodies(dir, kept, maxSkillBytes);
   const skills = kept.filter((name) => !flags.rejected.includes(name));
   if (flags.rejected.length > 0) {

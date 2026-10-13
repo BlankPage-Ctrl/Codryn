@@ -44,7 +44,10 @@ test('chunk error: non-validation errors keep their signal for downstream mappin
   // Provider/network text must survive: the outer stream onError re-maps it
   // via mapAiError (oops/run-close -> user banner). Redacting it here used
   // to leak a generic INTERNAL_ERROR ("An error occurred.") to the user.
-  assert.equal(formatToolChunkError(new Error('connection reset by peer')), 'connection reset by peer');
+  assert.equal(
+    formatToolChunkError(new Error('connection reset by peer')),
+    'connection reset by peer',
+  );
   assert.equal(formatToolChunkError('boom'), 'boom');
   assert.equal(formatToolChunkError(null), 'An error occurred.');
   assert.equal(formatToolChunkError({ code: 'SOME_SERVER_FAULT' }), 'An error occurred.');

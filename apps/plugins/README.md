@@ -18,11 +18,11 @@ process per enabled plugin and reuses it while healthy.
 
 Process CWD, in order:
 
-| `runtime.cwd` in manifest | Real CWD |
-|---|---|
-| absent or blank | plugin directory (recommended; omit the field) |
-| relative (`sub/dir`) | resolved against the plugin directory |
-| absolute | used as-is |
+| `runtime.cwd` in manifest | Real CWD                                       |
+| ------------------------- | ---------------------------------------------- |
+| absent or blank           | plugin directory (recommended; omit the field) |
+| relative (`sub/dir`)      | resolved against the plugin directory          |
+| absolute                  | used as-is                                     |
 
 Relative `args` (e.g. `./plugin.js`) resolve against that CWD. `command` is
 looked up on the backend process `PATH`. Env is backend env plus
@@ -33,13 +33,13 @@ looked up on the backend process `PATH`. Env is backend env plus
 Newline-delimited JSON-RPC 2.0 over stdin/stdout. Never log to stdout;
 stderr is log-only.
 
-| Direction | Method | Payload |
-|---|---|---|
-| backend sends | `initialize` | `{ pluginId, workspaceId, cwd }`, reply `{ manifest }` |
-| backend sends | `tools/list` | reply `{ tools }` |
-| backend sends | `tools/call` | `{ name, arguments }` (bare tool name), reply `{ ok, text }` |
-| backend sends | `ping` / `shutdown` | liveness and graceful exit |
-| plugin sends | `hooks/beforeTool`, `hooks/afterTool`, ... | notifications, only if declared in manifest `hooks` |
+| Direction     | Method                                     | Payload                                                      |
+| ------------- | ------------------------------------------ | ------------------------------------------------------------ |
+| backend sends | `initialize`                               | `{ pluginId, workspaceId, cwd }`, reply `{ manifest }`       |
+| backend sends | `tools/list`                               | reply `{ tools }`                                            |
+| backend sends | `tools/call`                               | `{ name, arguments }` (bare tool name), reply `{ ok, text }` |
+| backend sends | `ping` / `shutdown`                        | liveness and graceful exit                                   |
+| plugin sends  | `hooks/beforeTool`, `hooks/afterTool`, ... | notifications, only if declared in manifest `hooks`          |
 
 The runtime `manifest` (from `initialize`) declares the live tools; it may
 differ from the static `codryn-plugin.json`. Declare `tools` in both so

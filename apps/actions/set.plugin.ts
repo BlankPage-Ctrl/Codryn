@@ -29,11 +29,6 @@ export async function setPluginEnabled(
   if (!entries.some((e) => e.entry.id === params.id)) {
     throw new NotFoundError(`Plugin ${params.id} not found in the plugin registry`);
   }
-  await setPluginEnabledSetting(
-    ctx.settingsService,
-    params.workspaceId,
-    params.id,
-    params.enabled,
-  );
+  await setPluginEnabledSetting(ctx.settingsService, params.workspaceId, params.id, params.enabled);
   return getPlugin(ctx, { workspaceId: params.workspaceId, id: params.id });
 }
