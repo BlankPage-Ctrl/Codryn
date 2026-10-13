@@ -78,20 +78,24 @@ export class ColdRunStepsStorage implements IColdRunStepsStorage {
     }
   }
 
-  async sumByChatId(chatId: string): Promise<TokenUsageSum> {
+  async listByChatId(chatId: string): Promise<RunStepRow[]> {
     try {
-      // No partial select: the Database union only accepts select() without
-      // args, so aggregate in JS. NULL counts as 0, matching coalesce().
       const rows = await this.db
         .select()
         .from(messageRunSteps)
         .where(eq(messageRunSteps.chatId, chatId));
-      return {
-        inputTokens: rows.reduce((sum, r) => sum + Number(r.inputTokens ?? 0), 0),
-        outputTokens: rows.reduce((sum, r) => sum + Number(r.outputTokens ?? 0), 0),
-        totalTokens: rows.reduce((sum, r) => sum + Number(r.totalTokens ?? 0), 0),
-        steps: rows.length,
-      };
+      // Chronological: unfinished steps sort last, they hold the live context.
+      const finishedAt = (r: RunStepRow) =>
+        r.finishedAtMs === null || r.finishedAtMs === undefined
+          ? Number.MAX_SAFE_INTEGER
+          : Number(r.finishedAtMs);
+      return rows.sort(
+        (a, b) =>
+          finishedAt(a) - finishedAt(b) ||
+          Number(a.startedAtMs ?? 0) - Number(b.startedAtMs ?? 0) ||
+          String(a.createdAt).localeCompare(String(b.createdAt)) ||
+          Number(a.stepIndex) - Number(b.stepIndex),
+      );
     } catch (err) {
       if (err instanceof MessagesDomainError) throw err;
       throw new StorageReadError('message_run_steps', err, { chatId });

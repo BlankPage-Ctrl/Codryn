@@ -1,3 +1,5 @@
+import type { RunStepRow } from './run-step.js';
+
 /** Aggregated token usage from message_run_steps (NULL treated as 0). */
 export interface TokenUsageSum {
   inputTokens: number;
@@ -12,4 +14,9 @@ export interface ChatTokenUsage extends TokenUsageSum {
 
 export interface MessageTokenUsage extends TokenUsageSum {
   messageId: string;
+}
+
+export interface ChatRunSteps {
+  chatId: string;
+  steps: RunStepRow[];
 }
