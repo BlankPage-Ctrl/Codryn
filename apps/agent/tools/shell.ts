@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import type { AgentTool, AgentToolExecuteOptions } from '../../../src/agent/index.js';
 import { toRunShellRichBody, type OnRichResult } from './rich-result.js';
 import type { ShellConsumer, ShellOutcome, ShellRunData } from '../../../src/shell/index.js';
@@ -53,6 +54,9 @@ function toRunResult(outcome: ShellOutcome) {
 
 export interface ShellToolOptions {
   chatId?: string;
+  runId?: string;
+
+  signal?: AbortSignal;
   /**
    * Called when the shell requires user approval. When absent, the tool
    * immediately returns the REQUIRES_APPROVAL error to the LLM.
@@ -63,6 +67,15 @@ export interface ShellToolOptions {
   ) => Promise<ShellOutcome>;
   onRichResult?: OnRichResult;
 }
+
+// Compact truncation for killed runs: only the tail matters to the model,
+// unlike the roomier defaults used for successful output in guardShellOutcome.
+const KILLED_TRUNCATE = {
+  maxChars: 2_000,
+  maxLines: 40,
+  mode: 'head-tail',
+  headRatio: 0.25,
+} as const;
 
 export function createShellTool(
   consumer: ShellConsumer,
@@ -87,18 +100,45 @@ export function createShellTool(
       toolOptions?: AgentToolExecuteOptions,
     ) => {
       const toolCallId = toolOptions?.toolCallId ?? null;
-      const result = await consumer.run(
-        command,
-        { cwd, timeoutMs },
-        {
-          toolCallId,
-          chatId: opts.chatId ?? null,
-        },
+      // Minted upfront so an abort racing the execution can kill the live
+      // process with the same id the service tracks.
+      const executionId = randomUUID();
+      const signals = [opts.signal, toolOptions?.signal].filter(
+        (s): s is AbortSignal => s instanceof AbortSignal,
       );
+      let onAbort: (() => void) | undefined;
+      if (signals.length > 0) {
+        onAbort = () => {
+          consumer.killRun(executionId);
+        };
+        for (const signal of signals) {
+          if (signal.aborted) onAbort();
+          else signal.addEventListener('abort', onAbort, { once: true });
+        }
+      }
+      let result: Awaited<ReturnType<typeof consumer.run>>;
+      try {
+        result = await consumer.run(
+          command,
+          { cwd, timeoutMs, executionId, ...(signals[0] ? { signal: signals[0] } : {}) },
+          {
+            toolCallId,
+            chatId: opts.chatId ?? null,
+            runId: opts.runId ?? null,
+          },
+        );
+      } finally {
+        if (onAbort) {
+          for (const signal of signals) signal.removeEventListener('abort', onAbort);
+        }
+      }
 
       if (isShellPendingApproval(result)) {
         if (opts.resolvePermission) {
           const outcome = await opts.resolvePermission(result);
+          if (!outcome.ok && outcome.error.code === 'SHELL_KILLED') {
+            return toRunResult(await formatKilledOutcome(outcome, consumer.workspaceRoot));
+          }
           const guarded = await guardShellOutcome(outcome, consumer.workspaceRoot);
           emitRich(guarded, toolCallId);
           return toRunResult(guarded);
@@ -115,6 +155,10 @@ export function createShellTool(
         });
       }
 
+      if (!result.ok && result.error.code === 'SHELL_KILLED') {
+        return toRunResult(await formatKilledOutcome(result, consumer.workspaceRoot));
+      }
+
       const guarded = await guardShellOutcome(result, consumer.workspaceRoot);
       emitRich(guarded, toolCallId);
       return toRunResult(guarded);
@@ -122,6 +166,60 @@ export function createShellTool(
   };
 
   return [runShell];
+}
+
+/**
+ * Enriches a SHELL_KILLED denial with the compacted tail of the partial
+ * output, so the model sees what the command produced before the user
+ * stopped it. Spills to disk like successful output when truncated.
+ */
+async function formatKilledOutcome(
+  outcome: Extract<ShellOutcome, { ok: false }>,
+  projectPath: string,
+): Promise<Extract<ShellOutcome, { ok: false }>> {
+  const details = (outcome.error.details ?? {}) as {
+    stdout?: unknown;
+    stderr?: unknown;
+  };
+  const combined = [details.stdout, details.stderr]
+    .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    .join('\n');
+  if (combined.length === 0) {
+    return {
+      ...outcome,
+      error: {
+        ...outcome.error,
+        message: `${outcome.error.message} (no output captured)`,
+      },
+    };
+  }
+  try {
+    const truncated = await truncateToolOutput({
+      content: combined,
+      projectPath,
+      toolName: 'run_shell',
+      maxChars: KILLED_TRUNCATE.maxChars,
+      maxLines: KILLED_TRUNCATE.maxLines,
+      mode: KILLED_TRUNCATE.mode,
+      headRatio: KILLED_TRUNCATE.headRatio,
+    });
+    return {
+      ...outcome,
+      error: {
+        ...outcome.error,
+        message: `${outcome.error.message}. Last output:\n${truncated.text}`,
+      },
+    };
+  } catch {
+    // Truncation must never hide the kill: fall back to a raw tail.
+    return {
+      ...outcome,
+      error: {
+        ...outcome.error,
+        message: `${outcome.error.message}. Last output:\n${combined.slice(-KILLED_TRUNCATE.maxChars)}`,
+      },
+    };
+  }
 }
 
 async function guardShellOutcome(

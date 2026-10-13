@@ -40,6 +40,12 @@ const configShape = {
     maxServers: t.number().default(8),
     maxToolsPerServer: t.number().default(32),
   },
+  plugins: {
+    enabled: t.boolean().default(false),
+    maxPlugins: t.number().default(8),
+    maxSkillsPerPlugin: t.number().default(40),
+    maxToolsPerPlugin: t.number().default(16),
+  },
   logging: {
     level: t.string().default(''),
     maxSizeMb: t.number().default(10),

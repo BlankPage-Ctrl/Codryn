@@ -29,6 +29,7 @@ export async function startServer(
       defaultClientSecretKey: config.auth.defaultClientSecretKey,
       shell: config.shell,
       mcp: config.mcp,
+      plugins: config.plugins,
     },
     logger,
     { basePath: opts.basePath },

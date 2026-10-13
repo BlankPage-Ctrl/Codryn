@@ -30,7 +30,7 @@ export type {
   MessagePartUpdateRow,
 } from './cold-message-parts-storage.js';
 export type { IColdRunStepsStorage } from './cold-run-steps-storage.js';
-export type { TokenUsageSum, ChatTokenUsage, MessageTokenUsage } from './usage.js';
+export type { TokenUsageSum, ChatTokenUsage, MessageTokenUsage, ChatRunSteps } from './usage.js';
 export type {
   RunStepRow,
   NewRunStepRow,

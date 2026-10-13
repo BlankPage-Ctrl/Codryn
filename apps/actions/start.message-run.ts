@@ -7,7 +7,11 @@ import {
   type ThinkingLevel,
 } from '../../src/agent/index.js';
 import { repairUnresolvedToolCalls } from '../../src/messages/index.js';
-import { collectAttachmentIds, rewriteAttachmentUrls } from '../shared/attachment-refs.js';
+import {
+  collectAttachmentIds,
+  linkIncomingAttachments,
+  resolveAttachmentsForModel,
+} from '../shared/attachment-refs.js';
 import { buildMessageRunToolset } from '../agent/message-toolset.js';
 import { createFeedBridge } from '../shared/chat-feed/bridge.js';
 import { createStepRecorder } from '../shared/run-steps.js';
@@ -28,6 +32,7 @@ import {
   toProjectSkillPort,
   type SkillSources,
 } from '../skills/index.js';
+import { buildPluginBootstrap, loadPluginStates } from '../plugins/index.js';
 import { buildFmServices } from '../shared/fm-services.js';
 import { buildShellConsumer } from '../shared/shell-consumer.js';
 import {
@@ -42,7 +47,6 @@ import { isAbortError, mapAiError } from '../shared/ai-errors/index.js';
 import { resolveChatModel } from '../shared/model-resolver.js';
 import { getDefaultProviderGlobal } from '../shared/global-settings.js';
 import { MessagesDomainError } from '../../src/messages/errors/base.js';
-import { AttachmentsDomainError } from '../../src/attachments/errors/base.js';
 import type { RunRecord } from '../../src/runs/index.js';
 
 const messageIdGen = createIdGenerator({ prefix: 'msg', size: 16 });
@@ -66,9 +70,21 @@ export async function startMessageRun(
   if (!chat) throw new NotFoundError(`Chat ${params.chatId} not found`);
 
   const workspace = await ctx.workspacesService.findOne(params.workspaceId);
+  const pluginLoad = ctx.pluginsEnabled
+    ? await loadPluginStates(
+        workspace.projectPath,
+        params.workspaceId,
+        ctx.settingsService,
+        ctx.logger,
+        ctx.pluginLimits,
+        ctx.hitlService,
+      )
+    : { states: [], skills: [], tools: [], host: null as never };
+  const pluginBootstrap = buildPluginBootstrap(pluginLoad.states);
   const skillSources: SkillSources = {
     globalRoot: resolveGlobalRoot(),
     project: toProjectSkillPort(ctx.fileRepo, projectSkillDir(workspace.projectPath)),
+    ...(pluginLoad.skills.length > 0 ? { pluginSkills: pluginLoad.skills } : {}),
   };
   const skills = await loadSkillsForWorkspace(skillSources, ctx.logger);
 
@@ -101,7 +117,14 @@ export async function startMessageRun(
       params.chatId,
     );
   }
-  await attachMentionPart(ctx, context, params.message.id, workspace.projectPath, userText);
+  await attachMentionPart(
+    ctx,
+    context,
+    params.message.id,
+    workspace.projectPath,
+    userText,
+    params.workspaceId,
+  );
 
   const persistMessage: UIMessage = context.getMessage(params.message.id)!;
   const assistantMessageId = messageIdGen();
@@ -125,20 +148,9 @@ export async function startMessageRun(
     throw new AppError(500, 'Failed to persist message');
   }
 
-  // The incoming message now exists in storage: referenced attachments move
-  // from `pending` to `linked` (expiry cleared). Fail-closed - an unknown or
-  // foreign attachment must not start a run.
-  try {
-    const incomingIds = collectAttachmentIds([persistMessage]);
-    if (incomingIds.length > 0) {
-      await ctx.attachmentsService.markLinked(params.workspaceId, incomingIds);
-    }
-  } catch (err) {
-    if (err instanceof AttachmentsDomainError) {
-      throw toAttachmentAppError(err);
-    }
-    throw err;
-  }
+  // Referenced attachments move from pending to linked once persisted.
+  const incomingAttachmentIds = collectAttachmentIds([persistMessage]);
+  await linkIncomingAttachments(ctx.attachmentsService, params.workspaceId, incomingAttachmentIds);
 
   const run = await ctx.runService.create({
     chatId: params.chatId,
@@ -148,18 +160,15 @@ export async function startMessageRun(
   const runId = run.runId;
   const abortSignal = ctx.runService.abortSignal(runId) ?? undefined;
 
-  // Image attachments: the persisted copies keep opaque `attachment://` refs
-  // (DB stays lean); only the in-memory model input is resolved to data-URLs.
-  // History may reference older attachments too, so resolve across the full
-  // context - never inside `context` itself.
-  const resolvedUiMessages = await resolveAttachmentRefsForRun(
-    ctx,
-    context.resolve(),
+  // History can reference older attachments too, so translate the full
+  // context. The assembler keeps the opaque refs; only this copy carries data-URLs.
+  const assembledMessages = context.resolve();
+  const modelUiMessages = await resolveAttachmentsForModel(
+    ctx.attachmentsService,
+    assembledMessages,
     params.workspaceId,
   );
-  const messages = await (resolvedUiMessages
-    ? convertToModelMessages(repairUnresolvedToolCalls(resolvedUiMessages))
-    : context.toModelMessages());
+  const messages = await convertToModelMessages(repairUnresolvedToolCalls(modelUiMessages));
   assertInputTokenLimit(
     messages as Array<{ content?: unknown }>,
     maxInputTokens,
@@ -240,6 +249,7 @@ export async function startMessageRun(
               skills,
               projectPath: workspace.projectPath,
               insightEnabled,
+              ...(pluginBootstrap ? { pluginBootstrap } : {}),
             }),
             messages,
             tools: buildToolset(
@@ -256,15 +266,22 @@ export async function startMessageRun(
                 workspaceRoot: workspace.projectPath,
                 assistantMessageId,
                 runId,
+                ...(abortSignal ? { signal: abortSignal } : {}),
                 mode,
                 mcpTools,
+                pluginTools: pluginLoad.tools,
                 onRichResult: handleRich,
                 logger: ctx.logger,
               }),
             ),
             thinkingLevel,
             maxRetries: 3,
-            timeout: { stepMs: 120_000, toolMs: 360_000 },
+            timeout: {
+              stepMs: 600_000,
+              chunkMs: 120_000,
+              toolMs: 360_000,
+              tools: { request_humanMs: 300_000 },
+            },
             ...(abortSignal ? { abortSignal } : {}),
             onError: ({ error }) => {
               const isTimeout = (error as { name?: string })?.name === 'TimeoutError';
@@ -356,37 +373,4 @@ export async function startMessageRun(
   })();
 
   return { run, assistantMessageId };
-}
-
-/**
- * Resolves `attachment://` file refs to in-memory data-URLs for model input.
- * Returns null when there is nothing to resolve so callers keep the default
- * `context.toModelMessages()` path. Fail-closed: unknown attachments or
- * cross-workspace refs abort the run with a 4xx before any model call.
- */
-async function resolveAttachmentRefsForRun(
-  ctx: Container,
-  uiMessages: UIMessage[],
-  workspaceId: string,
-): Promise<UIMessage[] | null> {
-  const ids = collectAttachmentIds(uiMessages);
-  if (ids.length === 0) return null;
-  try {
-    const dataUrls = await ctx.attachmentsService.resolveDataUrls(workspaceId, ids);
-    return rewriteAttachmentUrls(uiMessages, dataUrls);
-  } catch (err) {
-    if (err instanceof AttachmentsDomainError) {
-      throw toAttachmentAppError(err);
-    }
-    throw err;
-  }
-}
-
-/** Preserves 4xx semantics; storage failures stay 500. */
-function toAttachmentAppError(err: AttachmentsDomainError): AppError {
-  const code =
-    err.code === 'VALIDATION_FAILED' || err.code === 'NOT_FOUND' || err.code === 'FORBIDDEN'
-      ? err.code
-      : 'INTERNAL_ERROR';
-  return new AppError(err.statusCode, err.message, code);
 }

@@ -58,9 +58,15 @@ import { SettingsService } from '../src/settings/index.js';
 import { WorkspacesService } from '../src/workspaces/index.js';
 import { MessagesService } from '../src/messages/index.js';
 import { NotesService, CategoriesService } from '../src/notes/index.js';
-import type { Logger } from './shared/types.js';
+import type { Logger, PluginServerConfig } from './shared/types.js';
 import { fallbackLogger } from './shared/logging/fallback.js';
 import { DEFAULT_MCP_CONFIG, McpManager, type McpManagerConfig } from './mcp/manager.js';
+import {
+  DEFAULT_PLUGIN_CONFIG,
+  toPluginLimits,
+  type PluginGlobalLimits,
+} from './plugins/config.js';
+import { PluginHost } from './plugins/host.js';
 
 export interface Container {
   clientService: ClientService;
@@ -83,6 +89,9 @@ export interface Container {
   hitlService: HitlService;
   runService: RunsService;
   mcpManager: McpManager;
+  pluginsEnabled: boolean;
+  pluginLimits: PluginGlobalLimits;
+  pluginHost: PluginHost;
   logger: Logger;
   shutdown: () => Promise<void>;
 }
@@ -94,6 +103,7 @@ export interface BootstrapConfig {
   defaultClientSecretKey: string;
   shell?: BootstrapShellConfig;
   mcp?: Partial<McpManagerConfig>;
+  plugins?: Partial<PluginServerConfig>;
 }
 
 export async function bootstrap(
@@ -196,6 +206,13 @@ export async function bootstrap(
     setValue: (key, value) => settingsService.setValue(key, value),
   });
 
+  // # Plugins (unofficial, default off; management + run paths gate on it).
+  const pluginConfig = { ...DEFAULT_PLUGIN_CONFIG, ...config.plugins };
+
+  // # Plugin host
+  const { PluginHost } = await import('./plugins/host.js');
+  const pluginHost = new PluginHost({ logger });
+
   return {
     clientService,
     chatService,
@@ -221,12 +238,29 @@ export async function bootstrap(
     hitlService,
     runService,
     mcpManager,
+    pluginsEnabled: pluginConfig.enabled,
+    pluginLimits: toPluginLimits(pluginConfig),
+    pluginHost,
     logger,
     shutdown: async () => {
+      // Best-effort: SIGKILL every live shell run before tearing down.
+      // Never blocks shutdown and never throws; orphaned OS processes may
+      // still survive in edge cases (unkillable / already-orphaned PIDs).
+      try {
+        const { killedCount } = shellService.killAllRuns();
+        if (killedCount > 0) logger.info({ killedCount }, 'shutdown: killed live shell runs');
+      } catch (err) {
+        logger.warn({ err }, 'shutdown: killAllRuns failed');
+      }
       try {
         await mcpManager.closeAll().catch(() => {});
       } catch {
         // ignore mcp shutdown
+      }
+      try {
+        await pluginHost.closeAll();
+      } catch {
+        // ignore plugin shutdown
       }
       try {
         const { getInsightManager } = await import('./insight/manager.js');

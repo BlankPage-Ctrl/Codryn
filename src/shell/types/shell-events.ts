@@ -37,11 +37,21 @@ export interface ShellExecErrorPayload {
   details?: unknown;
 }
 
+export interface ShellExecKilledPayload {
+  executionId: string;
+  toolCallId: string | null;
+  /** Workspace that started the run; kept so SSE watchers still route it. */
+  workspaceId: string | null;
+  signal: string;
+  at: number;
+}
+
 export interface ShellExecEventMap {
   start: ShellExecStartPayload;
   chunk: ShellExecChunkPayload;
   done: ShellExecDonePayload;
   error: ShellExecErrorPayload;
+  killed: ShellExecKilledPayload;
 }
 
 export type ShellExecEventName = keyof ShellExecEventMap;

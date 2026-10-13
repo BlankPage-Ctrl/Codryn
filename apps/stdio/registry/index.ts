@@ -11,6 +11,7 @@ import { shellMethods } from './shell.js';
 import { hitlMethods } from './hitl.js';
 import { insightMethods } from './insight.js';
 import { mcpMethods } from './mcp.js';
+import { pluginMethods } from './plugin.js';
 import { workspaceMethods } from './workspace.js';
 import type { StdioMethod } from './types.js';
 
@@ -39,4 +40,5 @@ export const stdioMethods: Record<string, StdioMethod> = {
   ...hitlMethods,
   ...insightMethods,
   ...mcpMethods,
+  ...pluginMethods,
 };

@@ -116,6 +116,7 @@ export interface IdentitySystemPromptInput {
   skills: SkillMeta[];
   projectPath: string;
   insightEnabled?: boolean | null;
+  pluginBootstrap?: string | null;
 }
 
 function buildIdentitySection(): string {
@@ -147,6 +148,7 @@ export function buildIdentitySystemPrompt(input: IdentitySystemPromptInput): str
     buildIdentitySection(),
     buildEnvironmentSection(input.projectPath, input.insightEnabled),
     skillPart,
+    input.pluginBootstrap ?? undefined,
   ].filter((section): section is string => typeof section === 'string' && section.length > 0);
   if (sections.length === 0) return undefined;
   return sections.join('\n\n');

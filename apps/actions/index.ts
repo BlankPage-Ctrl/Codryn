@@ -22,6 +22,7 @@ export { listMessageRuns } from './list.message-run.js';
 export { cancelMessageRun } from './cancel.message-run.js';
 
 export { generateTitle } from './generate.title.js';
+export { generateChatTitle } from './generate.chat-title.js';
 export { autocorrect } from './autocorrect.js';
 
 export { getSetting } from './get.setting.js';
@@ -65,6 +66,7 @@ export { rotateClientSecret } from './rotate.client.js';
 export { deleteClient } from './delete.client.js';
 
 export { watchShellExec } from './watch.shell-exec.js';
+export { killShellExec } from './kill.shell-exec.js';
 
 export { ensureInsight, getInsightStatus, stopInsight } from './ensure.insight.js';
 export { syncInsight, indexInsight, indexStatusInsight } from './sync.insight.js';
@@ -79,6 +81,13 @@ export { watchHitl } from './watch.hitl.js';
 
 export { listMcpServers } from './list.mcp-server.js';
 export { setMcpServerEnabled } from './set.mcp-server.js';
+
+export { listPlugins } from './list.plugin.js';
+export { getPlugin } from './get.plugin.js';
+export { setPluginEnabled } from './set.plugin.js';
+export { registerPlugin } from './register.plugin.js';
+export { unregisterPlugin } from './unregister.plugin.js';
+export { discoverPlugins } from './discover.plugin.js';
 
 export { uploadAttachment } from './upload.attachment.js';
 export { getAttachment } from './get.attachment.js';

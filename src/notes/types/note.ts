@@ -40,32 +40,46 @@ const DescSchema = z.string().trim().max(250);
 const DetailsSchema = z.string().trim().min(1).max(20_000);
 const IdSchema = z.string().min(1).max(64);
 
-export const NoteCreateSchema = z
-  .object({
-    workspace_id: IdSchema,
-    name: NameSchema.optional().default('Untitled'),
-    category_id: IdSchema.optional(),
-    desc: DescSchema.optional(),
-    details: DetailsSchema,
-    priority: PrioritySchema.optional(),
-    position: z
-      .object({
-        before: IdSchema.optional(),
-        after: IdSchema.optional(),
-      })
-      .optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.position?.before && data.position?.after) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['position'],
-        message: 'position.before and position.after are mutually exclusive',
-      });
-    }
-  });
+const NoteCreateBaseSchema = z.object({
+  workspace_id: IdSchema,
+  name: NameSchema.optional().default('Untitled'),
+  category_id: IdSchema.optional(),
+  desc: DescSchema.optional(),
+  details: DetailsSchema,
+  priority: PrioritySchema.optional(),
+  position: z
+    .object({
+      before: IdSchema.optional(),
+      after: IdSchema.optional(),
+    })
+    .optional(),
+});
+
+function refineNotePosition(
+  data: { position?: { before?: string; after?: string } },
+  ctx: z.RefinementCtx,
+): void {
+  if (data.position?.before && data.position?.after) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['position'],
+      message: 'position.before and position.after are mutually exclusive',
+    });
+  }
+}
+
+// Zod v4 refuses .omit() on a refined object, so the body variant is built
+// from the base shape and re-refined. Both entry points (HTTP and stdio)
+// share the check; omit at call time would silently drop it.
+export const NoteCreateSchema = NoteCreateBaseSchema.superRefine(refineNotePosition);
 
 export type NoteCreateInput = z.infer<typeof NoteCreateSchema>;
+
+export const NoteCreateBodySchema = NoteCreateBaseSchema.omit({ workspace_id: true }).superRefine(
+  refineNotePosition,
+);
+
+export type NoteCreateBodyInput = z.infer<typeof NoteCreateBodySchema>;
 
 export const NoteUpdateSchema = z
   .object({

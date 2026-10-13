@@ -1,12 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { resolveWithinRoot } from '../utils/path.js';
 import type { ShellService } from '../services/shell.js';
-import type { ShellRunMeta, ShellRunResult, TerminalPolicy } from '../types/index.js';
+import type {
+  ShellKillAllResult,
+  ShellKillResult,
+  ShellRunMeta,
+  ShellRunResult,
+  TerminalPolicy,
+} from '../types/index.js';
 
 export interface ShellRunConsumerOptions {
   cwd?: string;
   timeoutMs?: number;
   maxOutputChars?: number;
+  executionId?: string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -50,6 +58,7 @@ export class ShellConsumer {
       ...meta,
       workspaceId: this.workspaceId ?? meta?.workspaceId ?? null,
       chatId: meta?.chatId ?? null,
+      runId: meta?.runId ?? null,
     };
 
     return this.service.run(
@@ -59,8 +68,30 @@ export class ShellConsumer {
         policy,
         timeoutMs: opts.timeoutMs,
         maxOutputChars: opts.maxOutputChars,
+        executionId: opts.executionId,
+        ...(opts.signal ? { signal: opts.signal } : {}),
       },
       merged,
     );
+  }
+
+  /** Best-effort kill of one live run by execution id. */
+  killRun(executionId: string): ShellKillResult {
+    return this.service.killRun(executionId);
+  }
+
+  /** Best-effort kill of every live run. */
+  killAllRuns(): ShellKillAllResult {
+    return this.service.killAllRuns();
+  }
+
+  /** Best-effort kill of every live run started under one agent run id. */
+  killRunsForRun(runId: string): ShellKillAllResult {
+    return this.service.killRunsForRun(runId);
+  }
+
+  /** Best-effort abort of approval-pending shells started under one run id. */
+  cancelPendingForRun(runId: string): Promise<{ cancelledCount: number }> {
+    return this.service.cancelPendingForRun(runId);
   }
 }

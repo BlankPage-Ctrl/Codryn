@@ -28,6 +28,7 @@ export async function watchShellExec(
   const onChunk = (payload: unknown) => write({ type: 'chunk', ...(payload as object) });
   const onDone = (payload: unknown) => write({ type: 'done', ...(payload as object) });
   const onError = (payload: unknown) => write({ type: 'error', ...(payload as object) });
+  const onKilled = (payload: unknown) => write({ type: 'killed', ...(payload as object) });
 
   const matches = (payload: unknown): boolean => {
     const ws = (payload as { workspaceId?: string | null })?.workspaceId;
@@ -46,17 +47,22 @@ export async function watchShellExec(
   const onErrorScoped = (payload: unknown) => {
     if (matches(payload)) onError(payload);
   };
+  const onKilledScoped = (payload: unknown) => {
+    if (matches(payload)) onKilled(payload);
+  };
 
   bus.on('start', onStartScoped as never);
   bus.on('chunk', onChunkScoped as never);
   bus.on('done', onDoneScoped as never);
   bus.on('error', onErrorScoped as never);
+  bus.on('killed', onKilledScoped as never);
 
   const cleanup = () => {
     bus.off('start', onStartScoped as never);
     bus.off('chunk', onChunkScoped as never);
     bus.off('done', onDoneScoped as never);
     bus.off('error', onErrorScoped as never);
+    bus.off('killed', onKilledScoped as never);
   };
   stream.on('close', cleanup);
   stream.on('error', cleanup);

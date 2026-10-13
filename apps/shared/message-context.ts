@@ -81,7 +81,7 @@ export async function attachPlanNoticeSafe(
 }
 
 /**
- * Resolves `@file`/`@folder` mentions in the user text and appends the
+ * Resolves `@file`/`@folder`/`@symbol` mentions in the user text and appends the
  * resulting system part. Fail-open inside `resolveMention` (raw prompt).
  */
 export async function attachMentionPart(
@@ -90,8 +90,15 @@ export async function attachMentionPart(
   messageId: string,
   projectPath: string,
   userText: string,
+  workspaceId?: string,
 ): Promise<void> {
-  const { request, bysystemPart } = await resolveMention(ctx, projectPath, userText);
+  const { request, bysystemPart } = await resolveMention(
+    ctx,
+    projectPath,
+    userText,
+    {},
+    workspaceId,
+  );
   if (request) {
     ctx.logger.debug(
       {

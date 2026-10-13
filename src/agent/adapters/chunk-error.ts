@@ -1,13 +1,20 @@
 /**
  * Formats per-chunk stream errors (notably tool input validation failures)
- * for the model. The AI SDK redacts these to "An error occurred." by default
- * to avoid leaking server details - but a validation failure only echoes the
- * model's own input plus schema info, so field-level detail is safe AND it
- * stops the model from hallucinating causes (e.g. blaming `include` when
- * the real problem is a missing `pattern`).
+ * for the model. A validation failure only echoes the model's own input
+ * plus schema info, so field-level detail is safe AND it stops the model
+ * from hallucinating causes (e.g. blaming `include` when the real problem
+ * is a missing `pattern`).
  *
- * Everything that is NOT recognizably an input validation error keeps the
- * generic redaction (provider/stream errors may carry server details).
+ * Everything that is NOT recognizably an input validation error keeps its
+ * message text (truncated). This text has two downstream consumers and both
+ * need the signal:
+ * - `tool-output-error` chunks are read by the model, so a backend tool
+ *   failure stays actionable instead of a dead-end "An error occurred.".
+ * - `error` chunks are re-mapped for the user by `mapAiError` (outer
+ *   `onError` -> `oops`/`run-close`). Redacting here would destroy the
+ *   provider/network signal and the user banner would show a generic
+ *   INTERNAL_ERROR instead of e.g. PROVIDER_UNAVAILABLE.
+ * Only errors with no message at all fall back to the generic redaction.
  */
 
 const GENERIC = 'An error occurred.';
@@ -40,6 +47,26 @@ function toolNameOf(error: unknown): string | null {
   return typeof name === 'string' && name.length > 0 ? name : null;
 }
 
+/**
+ * Non-validation errors keep their message (truncated) so downstream
+ * consumers (model tool-output, user-facing `mapAiError`) still see the
+ * provider/network signal. Generic redaction only when no message exists.
+ */
+function passThroughMessage(error: unknown): string {
+  if (typeof error === 'string') {
+    const text = error.trim().slice(0, 300);
+    return text !== '' ? text : GENERIC;
+  }
+  if (typeof error === 'object' && error !== null) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string') {
+      const text = message.trim().slice(0, 300);
+      if (text !== '') return text;
+    }
+  }
+  return GENERIC;
+}
+
 function isValidationLike(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const rec = error as { name?: unknown; message?: unknown };
@@ -52,7 +79,7 @@ function isValidationLike(error: unknown): boolean {
 }
 
 export function formatToolChunkError(error: unknown): string {
-  if (!isValidationLike(error)) return GENERIC;
+  if (!isValidationLike(error)) return passThroughMessage(error);
   const issues = findIssues(error) ?? [];
   const tool = toolNameOf(error);
   const head = tool ? `Invalid input for \`${tool}\`` : 'Invalid tool input';

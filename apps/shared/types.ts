@@ -35,12 +35,20 @@ export interface TelemetryServerConfig {
   endpoint: string;
 }
 
+export interface PluginServerConfig {
+  enabled: boolean;
+  maxPlugins: number;
+  maxSkillsPerPlugin: number;
+  maxToolsPerPlugin: number;
+}
+
 export interface ServerConfig {
   server: { port: number; host: string };
   database: { path: string };
   auth: { defaultClientSecretKey: string };
   shell: ShellServerConfig;
   mcp: McpServerConfig;
+  plugins: PluginServerConfig;
   logging: LoggingServerConfig;
   telemetry: TelemetryServerConfig;
 }

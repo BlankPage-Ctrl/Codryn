@@ -8,7 +8,7 @@ import {
   type RecordRunStepInput,
 } from '../types/index.js';
 import type { HistoryThreadMessage, RevertFromMessageResult, RevertScope } from '../types/index.js';
-import type { ChatTokenUsage, MessageTokenUsage } from '../types/usage.js';
+import type { ChatRunSteps, MessageTokenUsage } from '../types/usage.js';
 import type { RunStepRow, NewRunStepRow } from '../types/run-step.js';
 import { ValidationError } from '../errors/validation.js';
 import type { IMessagesRepository } from '../types/messages-repository.js';
@@ -120,7 +120,7 @@ export class MessagesService {
     return this.repo.listRunStepsByRun(runId);
   }
 
-  async getUsageByChat(chatId: string): Promise<ChatTokenUsage> {
+  async getUsageByChat(chatId: string): Promise<ChatRunSteps> {
     const parsed = ChatIdSchema.safeParse({ chatId });
     if (!parsed.success) {
       throw new ValidationError(
@@ -128,7 +128,8 @@ export class MessagesService {
         { issues: parsed.error.issues, chatId },
       );
     }
-    return this.repo.getUsageByChat(parsed.data.chatId);
+    const steps = await this.repo.listRunStepsByChat(parsed.data.chatId);
+    return { chatId: parsed.data.chatId, steps };
   }
 
   async getUsageByMessage(messageId: string): Promise<MessageTokenUsage> {

@@ -58,8 +58,11 @@ export function toUIMessageStreamResponse(
           stream: result.stream,
           ...streamOptions,
           // Chunk-level errors (e.g. tool input validation failures) are
-          // redacted to "An error occurred." by default; surface field-level
-          // detail for validation errors so the model can fix its call.
+          // redacted to "An error occurred." by the SDK by default; surface
+          // field-level detail for validation errors so the model can fix
+          // its call. Non-validation errors keep their message text so the
+          // outer stream onError can still map them for the user
+          // (oops/run-close) instead of leaking a generic INTERNAL_ERROR.
           // Stream-level onError above is untouched.
           onError: formatToolChunkError,
         } as never) as never,

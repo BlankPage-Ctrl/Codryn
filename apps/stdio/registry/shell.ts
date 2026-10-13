@@ -1,7 +1,8 @@
-// import { decideApproval, listPendingApprovals } from '../../actions/index.js';
-// import { validateDecideApprovalParams } from '../../validators/shell.js';
-// import { act, noParams } from './types.js';
-import { type StdioMethod } from './types.js';
+import { killShellExec } from '../../actions/index.js';
+import { ShellExecutionIdParamsSchema } from '../../validators/shell.js';
+import { act, type StdioMethod } from './types.js';
+
+const KillShellExecSchema = ShellExecutionIdParamsSchema;
 
 export const shellMethods: Record<string, StdioMethod> = {
   // 'list.pending-approvals': {
@@ -14,4 +15,9 @@ export const shellMethods: Record<string, StdioMethod> = {
   //   validate: (p) => validateDecideApprovalParams(p),
   //   run: act(decideApproval),
   // },
+  'kill.shell-exec': {
+    kind: 'plain',
+    validate: (p) => KillShellExecSchema.parse(p),
+    run: act(killShellExec),
+  },
 };

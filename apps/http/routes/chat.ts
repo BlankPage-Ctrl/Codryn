@@ -1,11 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import type { Container } from '../../bootstrap.js';
-import { listChats, getChat, createChat, updateChat, deleteChat } from '../../actions/index.js';
+import {
+  listChats,
+  getChat,
+  createChat,
+  updateChat,
+  deleteChat,
+  generateChatTitle,
+} from '../../actions/index.js';
 import {
   validateChatParams,
   validateWorkspaceId,
   validateCreateChat,
   validateUpdateChat,
+  validateGenerateChatTitle,
 } from '../../validators/chat.js';
 
 export function registerChatRoutes(app: FastifyInstance, ctx: Container) {
@@ -30,6 +38,12 @@ export function registerChatRoutes(app: FastifyInstance, ctx: Container) {
     const { workspaceId, id } = validateChatParams(req.params);
     const patch = validateUpdateChat(req.body);
     return updateChat(ctx, { workspaceId, id, ...patch });
+  });
+
+  app.post('/workspaces/:workspaceId/chats/:id/title', async (req) => {
+    const { workspaceId, id } = validateChatParams(req.params);
+    const input = validateGenerateChatTitle(req.body);
+    return generateChatTitle(ctx, { workspaceId, chatId: id, ...input });
   });
 
   app.delete('/workspaces/:workspaceId/chats/:id', async (req, reply) => {

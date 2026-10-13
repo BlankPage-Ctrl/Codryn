@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  NoteCreateSchema,
+  NoteCreateBodySchema,
   NoteUpdateSchema,
   MovePositionSchema,
   CategoryCreateSchema,
@@ -61,8 +61,8 @@ export function validateListNotesQuery(query: unknown) {
 }
 
 export function validateCreateNote(body: unknown) {
-  // workspace_id injected from route param, omit from body validation
-  return NoteCreateSchema.omit({ workspace_id: true }).parse(body);
+  // workspace_id comes from the route param, so it is absent from the body
+  return NoteCreateBodySchema.parse(body);
 }
 
 export function validateUpdateNote(body: unknown) {

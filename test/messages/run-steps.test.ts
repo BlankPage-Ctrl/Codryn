@@ -99,6 +99,51 @@ test('recordRunStep rejects invalid input with ValidationError', async () => {
   }
 });
 
+test('listRunStepsByChat returns chronological steps across messages', async () => {
+  const { service, repo, cleanup } = await setup();
+  try {
+    await service.append('chat-1', assistantMsg('a1'));
+    await service.append('chat-1', assistantMsg('a2'));
+    await service.recordRunStep(
+      step({ messageId: 'a2', runId: 'run_2', finishedAtMs: 3000, totalTokens: 30 }),
+    );
+    await service.recordRunStep(
+      step({ messageId: 'a1', runId: 'run_1', finishedAtMs: 1000, totalTokens: 10 }),
+    );
+    await service.recordRunStep(
+      step({ messageId: 'a1', runId: 'run_1', stepIndex: 1, finishedAtMs: 2000, totalTokens: 20 }),
+    );
+
+    const rows = await repo.listRunStepsByChat('chat-1');
+    assert.deepEqual(
+      rows.map((r) => r.totalTokens),
+      [10, 20, 30],
+    );
+    assert.deepEqual(await repo.listRunStepsByChat('chat-other'), []);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('getUsageByChat returns the stored steps for the chat', async () => {
+  const { service, cleanup } = await setup();
+  try {
+    await service.append('chat-1', assistantMsg('a1'));
+    await service.recordRunStep(step({ inputTokens: 5, outputTokens: 7, totalTokens: 12 }));
+
+    const usage = await service.getUsageByChat('chat-1');
+    assert.equal(usage.chatId, 'chat-1');
+    assert.equal(usage.steps.length, 1);
+    assert.equal(usage.steps[0]?.totalTokens, 12);
+
+    const empty = await service.getUsageByChat('chat-other');
+    assert.deepEqual(empty.steps, []);
+    await assert.rejects(service.getUsageByChat(''), ValidationError);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('deleteMessage removes run steps; deleteByChatId removes run steps', async () => {
   const { service, cleanup } = await setup();
   try {

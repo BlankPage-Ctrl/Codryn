@@ -26,7 +26,7 @@ import type {
 } from '../types/message.js';
 import { RevertMessageSchema } from '../types/message.js';
 import type { NewRunStepRow, RunStepRow } from '../types/run-step.js';
-import type { ChatTokenUsage, MessageTokenUsage } from '../types/usage.js';
+import type { MessageTokenUsage } from '../types/usage.js';
 import type { RevertFromMessageResult, RevertScope } from '../types/messages-repository.js';
 import { ValidationError } from '../errors/validation.js';
 import { StorageWriteError } from '../errors/storage.js';
@@ -339,12 +339,21 @@ export class MessagesRepository implements IMessagesRepository {
     });
   }
 
-  async getUsageByChat(chatId: string): Promise<ChatTokenUsage> {
+  async listRunStepsByChat(chatId: string): Promise<RunStepRow[]> {
     if (!chatId) {
-      throw new ValidationError('Invalid chatId for getUsageByChat', { chatId });
+      throw new ValidationError('Invalid chatId for listRunStepsByChat', { chatId });
     }
-    const sum = await this.coldRunSteps.sumByChatId(chatId);
-    return { chatId, ...sum };
+    const rows = await this.coldRunSteps.listByChatId(chatId);
+    return rows.map((p) => {
+      try {
+        return runStepSelectSchema.parse(p);
+      } catch (err) {
+        throw new ValidationError('Invalid run step row from storage', {
+          chatId,
+          cause: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
   }
 
   async getUsageByMessage(messageId: string): Promise<MessageTokenUsage> {

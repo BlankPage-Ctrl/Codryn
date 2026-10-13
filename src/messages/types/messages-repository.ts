@@ -6,7 +6,7 @@ import type {
   HistoryMessageParts,
 } from './message.js';
 import type { NewRunStepRow, RunStepRow } from './run-step.js';
-import type { ChatTokenUsage, MessageTokenUsage } from './usage.js';
+import type { MessageTokenUsage } from './usage.js';
 
 export interface IMessagesRepository {
   findByChatId(chatId: string): Promise<UIMessage[]>;
@@ -25,7 +25,7 @@ export interface IMessagesRepository {
   recordRunStep(row: NewRunStepRow): Promise<RunStepRow>;
   listRunStepsByMessage(messageId: string): Promise<RunStepRow[]>;
   listRunStepsByRun(runId: string): Promise<RunStepRow[]>;
-  getUsageByChat(chatId: string): Promise<ChatTokenUsage>;
+  listRunStepsByChat(chatId: string): Promise<RunStepRow[]>;
   getUsageByMessage(messageId: string): Promise<MessageTokenUsage>;
   deleteMessage(chatId: string, messageId: string): Promise<void>;
   /**

@@ -11,9 +11,9 @@ import { z } from 'zod';
 export function jsonSchemaToZod(schema: unknown): z.ZodTypeAny {
   try {
     const converted = convert(schema);
-    return converted ?? z.object({}).loose();
+    return converted ?? z.object({});
   } catch {
-    return z.object({}).loose();
+    return z.object({});
   }
 }
 
@@ -60,8 +60,7 @@ function convert(schema: unknown): z.ZodTypeAny | null {
         const field = convert(prop) ?? z.unknown();
         shape[key] = required.has(key) ? field : field.optional();
       }
-      const base =
-        s.additionalProperties === false ? z.object(shape).strict() : z.object(shape).loose();
+      const base = s.additionalProperties === false ? z.object(shape).strict() : z.object(shape);
       return withMeta(base, s);
     }
     default:

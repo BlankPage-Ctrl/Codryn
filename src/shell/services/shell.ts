@@ -11,6 +11,8 @@ import type {
   PolicyDecision,
   SegmentInfo,
   ShellDeniedOutcome,
+  ShellKillAllResult,
+  ShellKillResult,
   ShellOutcome,
   ShellRunData,
   ShellRunMeta,
@@ -26,6 +28,24 @@ import { ValidationError } from '../errors/validation.js';
 import { ExecutionError } from '../errors/execution.js';
 
 const DEFAULT_MAX_BUFFER_BYTES = 50 * 1024 * 1024;
+
+/** Signal sent by killRun/killAllRuns. SIGKILL cannot be caught or ignored. */
+const KILL_SIGNAL = 'SIGKILL';
+
+interface ActiveRunMeta {
+  toolCallId: string | null;
+  workspaceId: string | null;
+  runId: string | null;
+  chatId: string | null;
+  command: string;
+  cwd: string;
+}
+
+interface PendingApprovalEntry {
+  runId: string | null;
+  chatId: string | null;
+  toolCallId: string | null;
+}
 
 /**
  * Orchestrates the shell execution pipeline: parse -> policy -> (approval?) ->
@@ -46,11 +66,104 @@ export class ShellService implements IShellService {
     private readonly eventBus?: IShellExecEventBus,
   ) {}
 
+  /**
+   * Routing metadata for live runs, keyed by execution id. Kept separate
+   * from workspace/chat storage on purpose: killing a run only needs the
+   * execution id, Entries are removed when the run settles.
+   */
+  private readonly activeMeta = new Map<string, ActiveRunMeta>();
+  /** Ids with a kill already signalled; keeps `killed` events one-per-run. */
+  private readonly killRequested = new Set<string>();
+  /**
+   * Approval-pending runs keyed by execution id. Entries are removed when
+   * the pending run is confirmed, aborted, or cancelled for a run abort.
+   */
+  private readonly pendingApprovals = new Map<string, PendingApprovalEntry>();
+
+  /**
+   * Best-effort kill of one live run. Idempotent and never throws for unknown ids:
+   * an id that is unknown, already finished, or already kill-requested
+   * returns `{ killed: false }` (one `killed` event per run at most).
+   */
+  killRun(executionId: string): ShellKillResult {
+    if (!executionId) return { executionId, killed: false };
+    if (this.killRequested.has(executionId)) return { executionId, killed: false };
+    const killed = this.repository.kill(executionId);
+    if (!killed) return { executionId, killed: false };
+    this.killRequested.add(executionId);
+    const meta = this.activeMeta.get(executionId);
+    this.eventBus?.emit('killed', {
+      executionId,
+      toolCallId: meta?.toolCallId ?? null,
+      workspaceId: meta?.workspaceId ?? null,
+      signal: KILL_SIGNAL,
+      at: Date.now(),
+    });
+    return { executionId, killed: true };
+  }
+
+  /**
+   * Best-effort kill of every live run (shutdown path). Never throws; a
+   * failing kill is skipped and the sweep continues.
+   */
+  killAllRuns(): ShellKillAllResult {
+    let killedCount = 0;
+    for (const executionId of [...this.activeMeta.keys()]) {
+      try {
+        if (this.killRun(executionId).killed) killedCount += 1;
+      } catch {
+        // best-effort: keep sweeping the rest
+      }
+    }
+    return { killedCount };
+  }
+
+  killRunsForRun(runId: string): ShellKillAllResult {
+    let killedCount = 0;
+    if (!runId) return { killedCount };
+    for (const [executionId, meta] of [...this.activeMeta.entries()]) {
+      if (meta.runId !== runId) continue;
+      try {
+        if (this.killRun(executionId).killed) killedCount += 1;
+      } catch {
+        // best-effort: keep sweeping the rest
+      }
+    }
+    return { killedCount };
+  }
+
+  async cancelPendingForRun(runId: string): Promise<{ cancelledCount: number }> {
+    let cancelledCount = 0;
+    if (!runId) return { cancelledCount };
+    for (const [executionId, entry] of [...this.pendingApprovals.entries()]) {
+      if (entry.runId !== runId) continue;
+      this.pendingApprovals.delete(executionId);
+      cancelledCount += 1;
+      try {
+        // Raw emitter throws on 'error' without listeners (no watcher
+        // attached); the cancellation itself already succeeded above.
+        this.eventBus?.emit('error', {
+          executionId,
+          toolCallId: entry.toolCallId,
+          workspaceId: null,
+          code: 'SHELL_KILLED',
+          message: 'Shell approval stopped by user',
+        });
+      } catch {
+        // best-effort: keep sweeping the rest
+      }
+    }
+    return { cancelledCount };
+  }
+
   async run(opts: ShellRunOptions, meta?: ShellRunMeta): Promise<ShellRunResult> {
-    const executionId = randomUUID();
+    // Caller-provided ids let someone kill the run mid-process with
+    // the same id; otherwise mint one. Reused ids are last-write-wins.
+    const executionId = opts.executionId || randomUUID();
     const toolCallId = meta?.toolCallId ?? null;
     const workspaceId = meta?.workspaceId ?? null;
     const chatId = meta?.chatId ?? null;
+    const runId = meta?.runId ?? null;
 
     if (!this.globalConfig.enabled) {
       return this.deny('NOT_ENABLED', 'Shell execution is disabled', false, null, executionId);
@@ -100,6 +213,7 @@ export class ShellService implements IShellService {
         toolCallId,
         workspaceId,
         chatId,
+        runId,
       });
     }
 
@@ -108,6 +222,7 @@ export class ShellService implements IShellService {
       toolCallId,
       workspaceId,
       chatId,
+      runId,
     });
   }
 
@@ -119,6 +234,7 @@ export class ShellService implements IShellService {
       toolCallId: string | null;
       workspaceId: string | null;
       chatId: string | null;
+      runId: string | null;
     },
   ): ShellPendingApproval {
     const permission = this.buildPermissionInput(opts, decision, ids);
@@ -247,6 +363,13 @@ export class ShellService implements IShellService {
       return denied;
     };
 
+    // Registered so a run cancel can abort approvals still waiting on the user.
+    this.pendingApprovals.set(ids.executionId, {
+      runId: ids.runId,
+      chatId: ids.chatId,
+      toolCallId: ids.toolCallId,
+    });
+
     return {
       ok: false,
       error: {
@@ -260,8 +383,20 @@ export class ShellService implements IShellService {
         },
       },
       permission,
-      confirm,
-      abort,
+      confirm: async (confirmation) => {
+        try {
+          return await confirm(confirmation);
+        } finally {
+          this.pendingApprovals.delete(ids.executionId);
+        }
+      },
+      abort: async () => {
+        try {
+          return await abort();
+        } finally {
+          this.pendingApprovals.delete(ids.executionId);
+        }
+      },
     };
   }
 
@@ -273,9 +408,25 @@ export class ShellService implements IShellService {
       toolCallId: string | null;
       workspaceId: string | null;
       chatId: string | null;
+      runId: string | null;
     },
   ): Promise<ShellOutcome> {
+    // A run that was already cancelled never spawns a process.
+    if (opts.signal?.aborted) {
+      return this.killed(ids, decision, opts, null);
+    }
+
     const timeoutMs = opts.timeoutMs ?? this.globalConfig.defaultTimeoutMs;
+
+    // Registered before `start` so observers (and killers) always see it.
+    this.activeMeta.set(ids.executionId, {
+      toolCallId: ids.toolCallId,
+      workspaceId: ids.workspaceId,
+      runId: ids.runId,
+      chatId: ids.chatId,
+      command: opts.command,
+      cwd: opts.cwd,
+    });
 
     if (this.eventBus) {
       this.eventBus.emit('start', {
@@ -287,7 +438,19 @@ export class ShellService implements IShellService {
       });
     }
 
+    // User cancellation during execution SIGKILLs the live process.
+    const signal = opts.signal;
+    let onAbort: (() => void) | undefined;
+    if (signal) {
+      onAbort = () => {
+        this.killRun(ids.executionId);
+      };
+      if (signal.aborted) onAbort();
+      else signal.addEventListener('abort', onAbort, { once: true });
+    }
+
     let raw: ExecOutput;
+    let killedByUser: boolean;
     try {
       raw = await this.repository.runStream(
         {
@@ -306,7 +469,9 @@ export class ShellService implements IShellService {
             ...chunk,
           });
         },
+        ids.executionId,
       );
+      killedByUser = this.killRequested.has(ids.executionId);
     } catch (err) {
       // Validation errors are programmer errors? propagate, never mislabel as execution failure.
       if (err instanceof ValidationError) throw err;
@@ -333,6 +498,17 @@ export class ShellService implements IShellService {
         ids.executionId,
         details,
       );
+    } finally {
+      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+      this.activeMeta.delete(ids.executionId);
+      this.killRequested.delete(ids.executionId);
+    }
+
+    // A killed run is a user-cancellation failure, not a success result, so
+    // the agent receives the partial output as an error it can react to.
+    // Timeouts keep their normal result shape (timedOut flag), they are not kills.
+    if (killedByUser || opts.signal?.aborted) {
+      return this.killed(ids, decision, opts, raw);
     }
 
     const stdout = stripAnsiText(raw.stdout);
@@ -369,6 +545,40 @@ export class ShellService implements IShellService {
       });
     }
     return { ok: true, data, executionId: ids.executionId };
+  }
+
+  /**
+   * Builds the user-cancellation failure for a killed run. Partial output
+   * travels in `details` so the caller can forward the tail to the agent.
+   */
+  private killed(
+    ids: {
+      executionId: string;
+      toolCallId: string | null;
+      workspaceId: string | null;
+      chatId: string | null;
+      runId: string | null;
+    },
+    decision: PolicyDecision | null,
+    opts: ShellRunOptions,
+    raw: ExecOutput | null,
+  ): ShellDeniedOutcome {
+    const partial = raw
+      ? {
+          signal: raw.signal ?? KILL_SIGNAL,
+          stdout: stripAnsiText(raw.stdout),
+          stderr: stripAnsiText(raw.stderr),
+          durationMs: raw.durationMs,
+        }
+      : { signal: KILL_SIGNAL, stdout: '', stderr: '', durationMs: 0 };
+    return this.deny(
+      'SHELL_KILLED',
+      'Shell execution stopped by user',
+      false,
+      decision,
+      ids.executionId,
+      { ...partial, command: opts.command, cwd: opts.cwd },
+    );
   }
 
   private deny(

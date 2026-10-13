@@ -5,6 +5,12 @@ import type { ReasoningBuildArgs } from './reasoning/builders/shared.js';
 
 export type ReasoningBuildContext = ReasoningBuildArgs;
 
+/** Default max input tokens applied when a model is created without a limit (128K). */
+export const DEFAULT_MAX_INPUT_TOKENS = 131072;
+
+/** Default max output tokens applied when a model is created without a limit (32K). */
+export const DEFAULT_MAX_OUTPUT_TOKENS = 32768;
+
 /** Model-factory shape the agent accepts - plugins must return this. */
 export type { ResolveClientFactory as ProviderClientFactory, ProviderModelFactory };
 
@@ -62,15 +68,15 @@ export const LlmProviderUpdateSchema = z
 
 export type LlmProviderUpdateInput = z.infer<typeof LlmProviderUpdateSchema>;
 
-const TokenLimitSchema = z.number().int().positive().max(1_000_000).nullable().optional();
+const TokenLimitSchema = z.number().int().positive().max(1_000_000);
 
 export const ModelCreateSchema = z
   .object({
     modelId: z.string().trim().min(1),
     displayName: z.string().trim().optional(),
     providerId: z.string().min(1),
-    maxInputTokens: TokenLimitSchema,
-    maxOutputTokens: TokenLimitSchema,
+    maxInputTokens: TokenLimitSchema.optional().default(DEFAULT_MAX_INPUT_TOKENS),
+    maxOutputTokens: TokenLimitSchema.optional().default(DEFAULT_MAX_OUTPUT_TOKENS),
   })
   .strict();
 
@@ -81,8 +87,8 @@ export const ModelUpdateSchema = z
     modelId: z.string().trim().min(1).optional(),
     displayName: z.string().trim().optional(),
     providerId: z.string().min(1).optional(),
-    maxInputTokens: TokenLimitSchema,
-    maxOutputTokens: TokenLimitSchema,
+    maxInputTokens: TokenLimitSchema.optional(),
+    maxOutputTokens: TokenLimitSchema.optional(),
   })
   .strict();
 
