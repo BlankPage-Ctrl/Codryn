@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   defaultGlobalShellConfig,
+  isShellPendingApproval,
   ShellExecEventBus,
   ShellExecutor,
   ShellRepository,
@@ -62,6 +63,7 @@ test('kill: running process is SIGKILLed and run resolves as SHELL_KILLED', asyn
   const outcome = await pending;
   assert.equal(outcome.ok, false);
   if (outcome.ok) return;
+  if (isShellPendingApproval(outcome)) assert.fail('unexpected pending approval');
   assert.equal(outcome.executionId, executionId);
   assert.equal(outcome.error.code, 'SHELL_KILLED');
 

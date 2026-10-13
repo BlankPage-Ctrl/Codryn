@@ -100,7 +100,7 @@ test('recordRunStep rejects invalid input with ValidationError', async () => {
 });
 
 test('listRunStepsByChat returns chronological steps across messages', async () => {
-  const { service, cleanup } = await setup();
+  const { service, repo, cleanup } = await setup();
   try {
     await service.append('chat-1', assistantMsg('a1'));
     await service.append('chat-1', assistantMsg('a2'));
@@ -114,12 +114,12 @@ test('listRunStepsByChat returns chronological steps across messages', async () 
       step({ messageId: 'a1', runId: 'run_1', stepIndex: 1, finishedAtMs: 2000, totalTokens: 20 }),
     );
 
-    const rows = await service.repo.listRunStepsByChat('chat-1');
+    const rows = await repo.listRunStepsByChat('chat-1');
     assert.deepEqual(
       rows.map((r) => r.totalTokens),
       [10, 20, 30],
     );
-    assert.deepEqual(await service.repo.listRunStepsByChat('chat-other'), []);
+    assert.deepEqual(await repo.listRunStepsByChat('chat-other'), []);
   } finally {
     await cleanup();
   }
