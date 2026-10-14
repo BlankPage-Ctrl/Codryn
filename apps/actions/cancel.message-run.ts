@@ -13,8 +13,11 @@ export async function cancelMessageRun(
     throw new NotFoundError(`Run ${params.runId} not found`);
   if (run.status !== 'running') return run;
   ctx.runService.requestCancel(params.runId);
-  // Sub-agents share the parent run signal, so the cancel above also aborts a
-  // running delegate_task. LLM abort is cooperative, only shells get SIGKILL.
+  try {
+    ctx.runService.killSubsForRun(params.runId);
+  } catch (err) {
+    ctx.logger.warn({ err, runId: params.runId }, 'cancel run: sub-agent kill failed');
+  }
   // Best-effort: SIGKILL every live shell of this run, abort its pending
   // approvals, and cancel its waiting shell approval requests so stuck tools
   // resolve as SHELL_KILLED instead of hanging until timeout.
