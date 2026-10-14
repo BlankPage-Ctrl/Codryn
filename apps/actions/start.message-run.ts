@@ -13,6 +13,12 @@ import {
   resolveAttachmentsForModel,
 } from '../shared/attachment-refs.js';
 import { buildMessageRunToolset } from '../agent/message-toolset.js';
+import {
+  createSubAgentTool,
+  loadSubAgentsForWorkspace,
+  matchModelHint,
+} from '../agent/subagents/index.js';
+import { toProviderConfig } from '../providers/translate.js';
 import { createFeedBridge } from '../shared/chat-feed/bridge.js';
 import { createStepRecorder } from '../shared/run-steps.js';
 import {
@@ -225,7 +231,7 @@ export async function startMessageRun(
         params.chatId,
       );
       const response = toUIMessageStreamResponse(
-        () => {
+        async () => {
           const handleRich: OnRichResult = (rich) => {
             bridge.emitSafe('notice', {
               ...bridge.scope,
@@ -241,6 +247,61 @@ export async function startMessageRun(
               ctx.logger.error({ err, runId }, 'rich attach failed');
             }
           };
+          // Parent tools first, then the delegate tool on top. The child
+          // reuses a filtered copy of the parent tools and can never
+          // delegate further, so depth stays at one level.
+          const buildRunTools = async () => {
+            const baseTools = buildMessageRunToolset({
+              fm,
+              shellConsumer,
+              shellEnabled: ctx.shellEnabled,
+              skillSources,
+              hitlService: ctx.hitlService,
+              insightDeps,
+              workspaceId: params.workspaceId,
+              chatId: params.chatId,
+              projectPath: workspace.projectPath,
+              workspaceRoot: workspace.projectPath,
+              assistantMessageId,
+              runId,
+              ...(abortSignal ? { signal: abortSignal } : {}),
+              mode,
+              mcpTools,
+              pluginTools: pluginLoad.tools,
+              onRichResult: handleRich,
+              logger: ctx.logger,
+            });
+            const { agents: subagents } = await loadSubAgentsForWorkspace({
+              fileRepo: ctx.fileRepo,
+              projectPath: workspace.projectPath,
+              logger: ctx.logger,
+            });
+            const delegateTools = createSubAgentTool({
+              agents: subagents,
+              parentModel: resolved.data,
+              agent: ctx.agent,
+              baseTools,
+              resolveModelHint: async (hint) => {
+                try {
+                  const providers = await ctx.providerStore.findAllWithModels();
+                  const match = matchModelHint(providers, hint);
+                  if (!match) return null;
+                  const provider = providers.find((p) => p.id === match.providerId);
+                  if (!provider) return null;
+                  return { providerConfig: toProviderConfig(provider), modelId: match.modelId };
+                } catch (err) {
+                  ctx.logger.warn({ err, hint }, 'subagent model hint lookup failed');
+                  return null;
+                }
+              },
+              thinkingLevel,
+              ...(maxOutputTokens != null ? { maxOutputTokens } : {}),
+              onRichResult: handleRich,
+              logger: ctx.logger,
+              ...(abortSignal ? { signal: abortSignal } : {}),
+            });
+            return [...baseTools, ...delegateTools];
+          };
           return ctx.agent.loop({
             model: resolved.data,
             ...(maxOutputTokens != null ? { maxOutputTokens } : {}),
@@ -252,28 +313,7 @@ export async function startMessageRun(
               ...(pluginBootstrap ? { pluginBootstrap } : {}),
             }),
             messages,
-            tools: buildToolset(
-              buildMessageRunToolset({
-                fm,
-                shellConsumer,
-                shellEnabled: ctx.shellEnabled,
-                skillSources,
-                hitlService: ctx.hitlService,
-                insightDeps,
-                workspaceId: params.workspaceId,
-                chatId: params.chatId,
-                projectPath: workspace.projectPath,
-                workspaceRoot: workspace.projectPath,
-                assistantMessageId,
-                runId,
-                ...(abortSignal ? { signal: abortSignal } : {}),
-                mode,
-                mcpTools,
-                pluginTools: pluginLoad.tools,
-                onRichResult: handleRich,
-                logger: ctx.logger,
-              }),
-            ),
+            tools: buildToolset(await buildRunTools()),
             thinkingLevel,
             maxRetries: 3,
             timeout: {

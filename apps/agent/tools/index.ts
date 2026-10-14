@@ -53,6 +53,7 @@ export {
   formatCreateFile,
   formatCreateFailure,
   formatSkillNotFound,
+  formatSubAgentError,
   formatToolError,
   formatHitlResult,
   formatHitlError,
@@ -60,3 +61,4 @@ export {
   DEFAULT_LIST_LIMIT,
   MAX_LIST_LIMIT,
 } from './format.js';
+export type { SubAgentErrorCode } from './format.js';

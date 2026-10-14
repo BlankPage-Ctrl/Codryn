@@ -43,6 +43,8 @@ If you come across a bug, performance issue, missing feature, or anything that c
 - **Ask** — read-only. Answers and investigates, never edits.
 - **Plan** — read-only plus writes a plan to `.codryn/plan/`.
 
+- **[Sub-agent](./docs/sub-agents.md)** — helper assistant the main assistant can call for exactly that kind of side job.
+
 ### MCP Support
 
 MCP servers connect over stdio or HTTP (WebSocket is not supported). Their tools show up as agent tools and every call waits for your approval; if a server fails, the chat simply continues without it. Content is text only for now, so images and other non-text blocks are left out of model context. Resources and prompts are listed but never auto-injected, and the model never invokes prompts on its own.

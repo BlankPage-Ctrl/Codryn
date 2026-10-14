@@ -396,6 +396,40 @@ export function formatHitlError(code: string, message: string, suggestion?: stri
   return suggestion ? `${head}\n**Suggestion**: ${suggestion}` : head;
 }
 
+export type SubAgentErrorCode =
+  | 'UNKNOWN_AGENT'
+  | 'CHILD_TIMEOUT'
+  | 'CHILD_ABORTED'
+  | 'CHILD_FAILED';
+
+export function formatSubAgentError(
+  code: SubAgentErrorCode,
+  message: string,
+  available: string[] = [],
+): string {
+  const head = `**Error**: \`${code}\` — ${message}`;
+  if (code === 'UNKNOWN_AGENT') {
+    if (available.length === 0) {
+      return `${head}\n**Suggestion**: No sub-agents are currently available.`;
+    }
+    const list = available.map((n) => `\`${safeName(n)}\``).join(', ');
+    return `${head}\n**Suggestion**: Call \`delegate_task\` with one of the available names: ${list}.`;
+  }
+  if (code === 'CHILD_TIMEOUT') {
+    return (
+      `${head}\n**Suggestion**: The child ran out of time. Retry with a smaller task, ` +
+      'or raise `timeoutMs` in its `.codryn/agents/*.md` file.'
+    );
+  }
+  if (code === 'CHILD_ABORTED') {
+    return `${head}\n**Suggestion**: The run was cancelled. Do not retry the delegation.`;
+  }
+  return (
+    `${head}\n**Suggestion**: Retry with a smaller self-contained task, ` +
+    'or handle it directly with your own tools.'
+  );
+}
+
 export function formatHitlResult(request: HitlRequest): string {
   const header = `# HITL \`${request.type}\` — ${request.status} — "${request.title.replace(/`/g, "'")}"`;
   const meta = [
