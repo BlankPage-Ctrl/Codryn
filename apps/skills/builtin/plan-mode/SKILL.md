@@ -22,31 +22,39 @@ Keep it scannable but executable:
 # Plan: <title>
 
 ## Context
+
 <why, what exists today, 1 short-mid paragraph>
 
 ## Goal
+
 <what is the target>
 
 ### Approach
+
 <the chosen approach, 1 short-mid paragraph>
 
 ### Risk
+
 <what potential issues and mitigation strategies for the upcoming changes>
 
 ### Changes
+
 - <file path> — <what changes and why>
 - <file path> — <what changes and why>
 
 ## Verification
+
 - <how to test end-to-end: command, test, or manual check>
 ```
 
 Rules for the plan:
+
 - Only the recommended approach — no "alternatives considered" section.
 - Read-only mode: NEVER modify source files.
 - Every change references a concrete file path.
 - Verification is mandatory at the end — never skip it.
 
 ## When to ask vs. when to act
+
 - **Ask** (via `request_human`) when a decision is the user's: scope, library choice, UX behavior, breaking changes.
 - **Don't ask** about things you can resolve from the codebase or sensible defaults.

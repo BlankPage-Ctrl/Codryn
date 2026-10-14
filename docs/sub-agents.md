@@ -17,7 +17,7 @@ instructions below it.
 
 > [!NOTE]
 > The file name becomes the helper's name. For example, `.codryn/agents/db-expert.md` creates a helper called
-`db-expert`.
+> `db-expert`.
 
 ### Example:
 
@@ -35,16 +35,15 @@ Answer with the exact files and queries involved, and say when you are unsure.
 The settings block supports these options. Everything except `description`
 is optional.
 
-| Option | What it does |
-| --- | --- |
-| `description` | **Required.** One line saying when this helper should be used. The main assistant reads this to decide who to call, so describe the job, not just the title. |
-| `mode` | `ask` (default), `plan`, or `edit`. It sets the starting permissions: `ask` helpers can only look, `edit` helpers may also change files and run commands. |
-| `tools` | A list of exactly what the helper may use. If you write this list, it replaces the default. You can name tools directly; The list of tools is below. |
-| `disallowedTools` | Tools to take away, even if the mode would allow them. |
-| `maxSteps` | How long the helper may work before it must stop and report back (default 20, maximum 50). |
-| `timeoutMs` | Time limit in milliseconds (default 120000, two minutes). |
-| `modelHint` | A preferred AI model for this helper, for example `gpt-6-astra`. This is only a suggestion.|
-
+| Option            | What it does                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `description`     | **Required.** One line saying when this helper should be used. The main assistant reads this to decide who to call, so describe the job, not just the title. |
+| `mode`            | `ask` (default), `plan`, or `edit`. It sets the starting permissions: `ask` helpers can only look, `edit` helpers may also change files and run commands.    |
+| `tools`           | A list of exactly what the helper may use. If you write this list, it replaces the default. You can name tools directly; The list of tools is below.         |
+| `disallowedTools` | Tools to take away, even if the mode would allow them.                                                                                                       |
+| `maxSteps`        | How long the helper may work before it must stop and report back (default 20, maximum 50).                                                                   |
+| `timeoutMs`       | Time limit in milliseconds (default 120000, two minutes).                                                                                                    |
+| `modelHint`       | A preferred AI model for this helper, for example `gpt-6-astra`. This is only a suggestion.                                                                  |
 
 > [!IMPORTANT]
 > If a `modelHint` is set but that model is gone or misspelled, the helper falls back to your chat's model and says so in one line at the top of its answer.
