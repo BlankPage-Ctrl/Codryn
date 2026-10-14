@@ -47,11 +47,15 @@ function truncate(text: string): { text: string; truncated: boolean } {
   };
 }
 
+function isChildAbort(err: unknown): boolean {
+  if (isAbortError(err)) return true;
+  return (err as { name?: unknown })?.name === 'TimeoutError';
+}
+
 function childSignal(parent: AbortSignal | undefined, timeoutMs: number): AbortSignal {
-  const timeout = AbortSignal.timeout(timeoutMs);
-  if (!parent) return timeout;
+  if (!parent) return AbortSignal.timeout(timeoutMs);
   if (parent.aborted) return parent;
-  return AbortSignal.any([parent, timeout]);
+  return AbortSignal.any([parent, AbortSignal.timeout(timeoutMs)]);
 }
 
 /** Single `delegate_task` tool. Returns [] when no sub-agents are registered. */
@@ -81,6 +85,7 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
         );
       }
       const toolCallId = toolOptions?.toolCallId;
+      const parentSignal = toolOptions?.signal ?? deps.signal;
       const childTools = filterChildTools(deps.baseTools, def);
 
       let model = deps.parentModel;
@@ -108,7 +113,7 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
           ...(deps.thinkingLevel ? { thinkingLevel: deps.thinkingLevel } : {}),
           ...(deps.maxOutputTokens != null ? { maxOutputTokens: deps.maxOutputTokens } : {}),
           maxRetries: 2,
-          abortSignal: childSignal(deps.signal, def.timeoutMs),
+          abortSignal: childSignal(parentSignal, def.timeoutMs),
         });
         const capped = truncate(result.text);
         text = capped.text;
@@ -116,8 +121,12 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
       } catch (err) {
         // Parent cancellation and child timeout both surface as aborts:
         // the parent signal decides which one the model sees.
-        if (isAbortError(err) || deps.signal?.aborted === true) {
-          const parentCancelled = deps.signal?.aborted === true;
+        const parentCancelled = parentSignal?.aborted === true;
+        if (isChildAbort(err) || parentCancelled) {
+          deps.logger?.warn(
+            { agentName: def.name, timeoutMs: def.timeoutMs, parentCancelled },
+            parentCancelled ? 'subagent aborted by run cancel' : 'subagent timed out',
+          );
           return formatSubAgentError(
             parentCancelled ? 'CHILD_ABORTED' : 'CHILD_TIMEOUT',
             parentCancelled

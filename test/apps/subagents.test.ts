@@ -245,3 +245,23 @@ test('delegate maps provider failures to CHILD_FAILED', async () => {
   assert.ok(out.includes('`CHILD_FAILED`'));
   assert.ok(out.includes('**Suggestion**'));
 });
+
+test('delegate treats TimeoutError as child timeout', async () => {
+  const timeoutErr = new Error('The operation timed out');
+  timeoutErr.name = 'TimeoutError';
+  const tool = delegateWith(rejectingAgent(timeoutErr));
+  const out = (await tool.execute(
+    { agent_name: 'explorer', task: 'find auth code' },
+    {},
+  )) as string;
+  assert.ok(out.includes('`CHILD_TIMEOUT`'));
+});
+
+test('delegate prefers the tool call signal over the stored signal', async () => {
+  const tool = delegateWith(rejectingAgent(new Error('aborted')));
+  const out = (await tool.execute(
+    { agent_name: 'explorer', task: 'find auth code' },
+    { signal: AbortSignal.abort() },
+  )) as string;
+  assert.ok(out.includes('`CHILD_ABORTED`'));
+});

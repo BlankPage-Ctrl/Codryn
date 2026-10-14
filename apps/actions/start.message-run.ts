@@ -164,7 +164,8 @@ export async function startMessageRun(
     assistantMessageId,
   });
   const runId = run.runId;
-  const abortSignal = ctx.runService.abortSignal(runId) ?? undefined;
+  const getAbortSignal = (): AbortSignal | undefined =>
+    ctx.runService.abortSignal(runId) ?? undefined;
 
   // History can reference older attachments too, so translate the full
   // context. The assembler keeps the opaque refs; only this copy carries data-URLs.
@@ -251,6 +252,7 @@ export async function startMessageRun(
           // reuses a filtered copy of the parent tools and can never
           // delegate further, so depth stays at one level.
           const buildRunTools = async () => {
+            const liveSignal = getAbortSignal();
             const baseTools = buildMessageRunToolset({
               fm,
               shellConsumer,
@@ -264,7 +266,7 @@ export async function startMessageRun(
               workspaceRoot: workspace.projectPath,
               assistantMessageId,
               runId,
-              ...(abortSignal ? { signal: abortSignal } : {}),
+              ...(liveSignal ? { signal: liveSignal } : {}),
               mode,
               mcpTools,
               pluginTools: pluginLoad.tools,
@@ -298,10 +300,11 @@ export async function startMessageRun(
               ...(maxOutputTokens != null ? { maxOutputTokens } : {}),
               onRichResult: handleRich,
               logger: ctx.logger,
-              ...(abortSignal ? { signal: abortSignal } : {}),
+              ...(liveSignal ? { signal: liveSignal } : {}),
             });
             return [...baseTools, ...delegateTools];
           };
+          const loopSignal = getAbortSignal();
           return ctx.agent.loop({
             model: resolved.data,
             ...(maxOutputTokens != null ? { maxOutputTokens } : {}),
@@ -322,7 +325,7 @@ export async function startMessageRun(
               toolMs: 360_000,
               tools: { request_humanMs: 300_000 },
             },
-            ...(abortSignal ? { abortSignal } : {}),
+            ...(loopSignal ? { abortSignal: loopSignal } : {}),
             onError: ({ error }) => {
               const isTimeout = (error as { name?: string })?.name === 'TimeoutError';
               const mapped = mapAiError(error, { chatId: params.chatId });
@@ -396,7 +399,7 @@ export async function startMessageRun(
       }
       await drainStreamBody(response.body);
     } catch (err) {
-      const aborted = isAbortError(err) || abortSignal?.aborted === true;
+      const aborted = isAbortError(err) || getAbortSignal()?.aborted === true;
       await handleBackgroundRunFailure(
         {
           runs: ctx.runService,
