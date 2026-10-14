@@ -32,6 +32,11 @@ import { getMcpAgentTools } from '../agent/tools/mcp.js';
 import { isInsightEnabled } from '../insight/execute/settings.js';
 import { buildIdentitySystemPrompt, resolveAgentMode } from '../agent/modes.js';
 import {
+  formatAgentsMdSection,
+  loadAgentsMdForWorkspace,
+  toAgentsMdPort,
+} from '../agent/agents-md/index.js';
+import {
   loadSkillsForWorkspace,
   projectSkillDir,
   resolveGlobalRoot,
@@ -93,6 +98,12 @@ export async function startMessageRun(
     ...(pluginLoad.skills.length > 0 ? { pluginSkills: pluginLoad.skills } : {}),
   };
   const skills = await loadSkillsForWorkspace(skillSources, ctx.logger);
+  const agentsMd = formatAgentsMdSection(
+    await loadAgentsMdForWorkspace(
+      toAgentsMdPort(ctx.fileRepo, workspace.projectPath),
+      ctx.logger,
+    ).catch(() => null),
+  );
 
   const defaults = await getDefaultProviderGlobal(ctx);
   const resolved = await resolveChatModel(ctx, chat, defaults);
@@ -312,6 +323,7 @@ export async function startMessageRun(
               base: chat.system_prompt ?? undefined,
               skills,
               projectPath: workspace.projectPath,
+              ...(agentsMd ? { agentsMd } : {}),
               insightEnabled,
               ...(pluginBootstrap ? { pluginBootstrap } : {}),
             }),

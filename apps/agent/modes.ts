@@ -71,6 +71,7 @@ export interface IdentitySystemPromptInput {
   base?: string | undefined;
   skills: SkillMeta[];
   projectPath: string;
+  agentsMd?: string | null;
   insightEnabled?: boolean | null;
   pluginBootstrap?: string | null;
 }
@@ -103,6 +104,7 @@ export function buildIdentitySystemPrompt(input: IdentitySystemPromptInput): str
   const sections = [
     buildIdentitySection(),
     buildEnvironmentSection(input.projectPath, input.insightEnabled),
+    input.agentsMd ?? undefined,
     skillPart,
     input.pluginBootstrap ?? undefined,
   ].filter((section): section is string => typeof section === 'string' && section.length > 0);
