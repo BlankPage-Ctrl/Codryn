@@ -59,7 +59,7 @@ In terms of features, Agentic AI can request 'Insights' to search, trace (explor
 As a user, you can index your project, and there is no need to repeatedly press the index button; SrcInsight updates your project code incrementally.
 
 > [!NOTE]
-> Language support is limited to TypeScript, Python, and Golang. See [SrcInsight](srcinsight/README.md) for more details.
+> Language support is limited to TypeScript, Python, and Golang. See [SrcInsight](https://github.com/BlankPage-Ctrl/SrcInsight) for more details.
 
 ### Configuration
 
