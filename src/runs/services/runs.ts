@@ -2,11 +2,15 @@ import { EventEmitter } from 'node:events';
 import type {
   IRunManager,
   IRunRepository,
+  ISubAgentLive,
   RunErrorInfo,
   RunRecord,
   RunStatus,
   SseFrame,
+  SubChunkListener,
+  SubLiveMeta,
 } from '../types/index.js';
+import { toSubRunKey } from '../engines/sub-key.js';
 
 interface LiveRun {
   controller: AbortController;
@@ -23,8 +27,10 @@ function createRunId(): string {
   return `run_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 }
 
-export class RunsService implements IRunManager {
+export class RunsService implements IRunManager, ISubAgentLive {
   private readonly live = new Map<string, LiveRun>();
+  private readonly subMeta = new Map<string, SubLiveMeta>();
+  private readonly children = new Map<string, Set<string>>();
 
   constructor(private readonly repo: IRunRepository) {}
 
@@ -167,6 +173,81 @@ export class RunsService implements IRunManager {
 
   frames(runId: string): SseFrame[] {
     return [...(this.live.get(runId)?.buffer ?? [])];
+  }
+
+  ensureSub(meta: SubLiveMeta): string {
+    const subKey = toSubRunKey(meta.parentRunId, meta.toolCallId);
+    this.ensureLive(subKey);
+    this.subMeta.set(subKey, { ...meta });
+    let set = this.children.get(meta.parentRunId);
+    if (!set) {
+      set = new Set<string>();
+      this.children.set(meta.parentRunId, set);
+    }
+    set.add(subKey);
+    return subKey;
+  }
+
+  getSubMeta(subKey: string): SubLiveMeta | null {
+    const meta = this.subMeta.get(subKey);
+    return meta ? { ...meta } : null;
+  }
+
+  isSubOpen(subKey: string): boolean {
+    if (!this.subMeta.has(subKey)) return false;
+    const entry = this.live.get(subKey);
+    if (!entry) return false;
+    return !entry.terminal;
+  }
+
+  publishSubChunk(subKey: string, line: string): boolean {
+    if (!this.subMeta.has(subKey)) return false;
+    return this.publishChunk(subKey, line);
+  }
+
+  publishSubDone(subKey: string): void {
+    if (!this.subMeta.has(subKey)) return;
+    this.publishDone(subKey);
+  }
+
+  publishSubError(subKey: string, err: RunErrorInfo): void {
+    if (!this.subMeta.has(subKey)) return;
+    this.publishError(subKey, err);
+  }
+
+  subscribeSub(subKey: string, listener: SubChunkListener): () => void {
+    return this.subscribe(subKey, listener);
+  }
+
+  framesSub(subKey: string): SseFrame[] {
+    if (!this.subMeta.has(subKey)) return [];
+    return this.frames(subKey);
+  }
+
+  killSub(subKey: string): boolean {
+    const entry = this.live.get(subKey);
+    if (!entry) return false;
+    if (entry.controller.signal.aborted) return true;
+    entry.controller.abort();
+    return true;
+  }
+
+  killSubsForRun(parentRunId: string): { killedCount: number } {
+    let killedCount = 0;
+    const set = this.children.get(parentRunId);
+    if (!set) return { killedCount };
+    for (const subKey of [...set]) {
+      try {
+        const entry = this.live.get(subKey);
+        if (!entry || entry.terminal) continue;
+        if (entry.controller.signal.aborted) continue;
+        entry.controller.abort();
+        killedCount += 1;
+      } catch {
+        continue;
+      }
+    }
+    return { killedCount };
   }
 
   private withSeq(line: string, seq: number): string {
