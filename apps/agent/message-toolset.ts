@@ -21,6 +21,8 @@ import {
   createReadFileTool,
   createReadPlanTool,
   createPlanTools,
+  createReadTodoTool,
+  createTodoTools,
   createShellTool,
   createSkillListTool,
   createSkillTool,
@@ -148,6 +150,9 @@ export function buildMessageRunToolset(deps: MessageToolsetDeps): AgentTool[] {
       : []),
     // Edit mode: read-only access to the active plan.
     ...(mode === 'edit' ? createReadPlanTool({ projectPath, chatId }) : []),
+    ...(mode === 'edit'
+      ? createTodoTools({ projectPath, chatId, workspaceId })
+      : [...createReadTodoTool({ projectPath, chatId })]),
     ...createSkillTool({ sources: deps.skillSources, logger }),
     ...createSkillListTool({ sources: deps.skillSources, logger }),
     ...createHitlTool(hitlService, { chatId, workspaceId }, { onRichResult: deps.onRichResult }),

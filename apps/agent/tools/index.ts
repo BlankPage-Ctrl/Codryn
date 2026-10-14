@@ -12,6 +12,14 @@ export {
   readPlanSchema,
 } from './plan.js';
 export type { PlanToolDeps, ReadPlanToolDeps } from './plan.js';
+export {
+  createTodoTools,
+  createReadTodoTool,
+  todoWriteSchema,
+  todoReadSchema,
+  todoUpdateSchema,
+} from './todo.js';
+export type { TodoToolDeps, TodoReadToolDeps } from './todo.js';
 export { createSkillTool, skillSchema } from './skill.js';
 export { createSkillListTool, skillListSchema } from './skill-list.js';
 export { createShellTool } from './shell.js';
