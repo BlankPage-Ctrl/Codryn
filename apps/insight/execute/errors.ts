@@ -69,3 +69,16 @@ export class InsightIncompatibleError extends InsightBinaryError {
     (this as unknown as Record<string, unknown>).expectedRange = expected;
   }
 }
+
+export class InsightUnregisteredVersionError extends InsightBinaryError {
+  public readonly codrynVersion: string;
+  constructor(codrynVersion: string, issuesUrl: string) {
+    super(
+      `Codryn v${codrynVersion} is not registered in the insight manifest, so no safe SrcInsight version can be determined and nothing was installed. Please report this at ${issuesUrl} so a version pin can be added.`,
+    );
+    this.name = 'InsightUnregisteredVersionError';
+    this.codrynVersion = codrynVersion;
+    (this as unknown as Record<string, unknown>).code = 'INSIGHT_UNREGISTERED_VERSION';
+    (this as unknown as Record<string, unknown>).codrynVersion = codrynVersion;
+  }
+}

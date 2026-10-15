@@ -1,0 +1,15 @@
+{
+  "$comment": "Decides which SrcInsight versions belong to each Codryn version.",
+  "manifestVersion": 1,
+  "updatedAt": "2026-10-15T00:00:00Z",
+  "pins": {
+    "0.0.1": {
+      "latest": "0.0.10",
+      "supported": ["0.0.10"]
+    },
+    "0.0.2": {
+      "latest": "0.0.10",
+      "supported": ["0.0.10"]
+    }
+  }
+}

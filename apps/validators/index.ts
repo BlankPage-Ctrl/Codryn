@@ -53,6 +53,13 @@ export {
 } from './shell.js';
 
 export { validateHitlId, validateHitlRequest, validateHitlResponse } from './hitl.js';
+export {
+  validateInsightWorkspaceParams,
+  validateInsightSync,
+  validateInsightIndex,
+  validateInsightSearch,
+  validateInsightUpdateOptions,
+} from './insight.js';
 export { validatePluginGet, validatePluginSetEnabled, validatePluginWorkspace } from './plugin.js';
 export {
   expandEnvVars,

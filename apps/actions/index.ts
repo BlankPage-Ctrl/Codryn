@@ -69,6 +69,8 @@ export { watchShellExec } from './watch.shell-exec.js';
 export { killShellExec } from './kill.shell-exec.js';
 
 export { ensureInsight, getInsightStatus, stopInsight } from './ensure.insight.js';
+export { checkInsightUpdate } from './check.insight-update.js';
+export { updateInsightBinary } from './update.insight-binary.js';
 export { syncInsight, indexInsight, indexStatusInsight } from './sync.insight.js';
 export { searchInsight } from './search.insight.js';
 

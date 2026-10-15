@@ -21,3 +21,9 @@ export const INSIGHT_COMPAT_MAX: string | undefined = undefined;
 
 /** Timeout for `<binary> version` probe. */
 export const INSIGHT_VERSION_TIMEOUT_MS = 8000;
+
+/** Timeout for the SrcInsight binary download (12MB+ asset, slow links). */
+export const INSIGHT_DOWNLOAD_TIMEOUT_MS = 120_000;
+
+/** Where users report an unregistered Codryn version (no manifest pin). */
+export const CODRYN_ISSUES_URL = 'https://github.com/BlankPage-Ctrl/Codryn/issues/new';

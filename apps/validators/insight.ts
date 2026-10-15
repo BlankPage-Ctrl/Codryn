@@ -35,3 +35,17 @@ export const InsightSearchQuerySchema = z.object({
 export function validateInsightSearch(query: unknown) {
   return InsightSearchQuerySchema.parse(query);
 }
+
+export const InsightUpdateOptionsSchema = z.object({
+  to: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/, 'must be a semver string')
+    .optional(),
+  check: z.boolean().optional(),
+  yes: z.boolean().optional(),
+  dir: z.string().min(1).optional(),
+});
+
+export function validateInsightUpdateOptions(opts: unknown) {
+  return InsightUpdateOptionsSchema.parse(opts ?? {});
+}
