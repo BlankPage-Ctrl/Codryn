@@ -1,5 +1,3 @@
-import { z } from 'zod';
-import { zodSchema } from 'ai';
 import type { Container } from '../bootstrap.js';
 import { ValidationError, NotFoundError } from '../shared/errors.js';
 import { resolveChatModel } from '../shared/model-resolver.js';
@@ -19,10 +17,6 @@ export interface GenerateChatTitleResult {
   title: string;
 }
 
-const titleSchema = z.object({
-  title: z.string(),
-});
-
 function sanitizeTitle(raw: unknown): string {
   if (typeof raw !== 'string') return '';
   let title = raw.trim().replace(/\s+/g, ' ');
@@ -38,10 +32,6 @@ function sanitizeTitle(raw: unknown): string {
   return title;
 }
 
-function countWords(title: string): number {
-  return title.split(' ').filter(Boolean).length;
-}
-
 export async function generateChatTitle(
   ctx: Container,
   params: GenerateChatTitleParams,
@@ -53,8 +43,13 @@ export async function generateChatTitle(
   const chat = await ctx.chatService.findOne(params.chatId, params.workspaceId);
   if (!chat) throw new NotFoundError(`Chat ${params.chatId} not found`);
 
+  // Only the chat's first turn gets an auto title. Count user turns rather
+  // than total rows: the first message is usually already persisted by the
+  // time this runs (the send and this call race), so a raw row count would
+  // reject every legitimate first-turn request.
   const history = await ctx.messagesService.loadHistory(params.chatId);
-  if (history.length > 2) {
+  const userTurns = history.filter((m) => m.role === 'user').length;
+  if (userTurns > 1) {
     throw new ValidationError('Title can only be generated for a new chat');
   }
 
@@ -71,22 +66,32 @@ export async function generateChatTitle(
     );
     if (!resolved.ok) throw new ValidationError(resolved.error.message);
 
-    const result = await ctx.agent.object({
+    // Streamed, not `agent.object`: some OpenAI-compatible providers only
+    // answer reliably on the streaming path, where the structured-object call
+    // fails and silently drops to the static fallback title.
+    const result = await ctx.agent.stream({
       model: resolved.data,
       system:
         'You write concise, descriptive chat titles. ' +
-        'Produce a JSON object matching: { "title": string }. ' +
-        'Title must be at most 10 words, never more than 15 words. ' +
-        'Plain words only, no quotes, no emojis, no punctuation at the end. ' +
+        'Reply with only the title on a single line. ' +
+        'At most 10 words, never more than 15. ' +
+        'Plain words only, no quotes, no markdown, no emojis, no trailing punctuation. ' +
         'Match the language of the user message.',
-      prompt: params.text.slice(0, 2000),
-      schema: zodSchema(titleSchema),
+      messages: [{ role: 'user', content: params.text.slice(0, 2000) }],
+      abortSignal: AbortSignal.timeout(20_000),
     });
 
-    const candidate = sanitizeTitle(result.object.title);
-    if (candidate && countWords(candidate) <= 15) generated = candidate;
-  } catch {
-    // Fall through to the static fallback below.
+    let raw = '';
+    for await (const part of result.fullStream) {
+      if (part.type === 'text-delta') raw += part.text;
+    }
+    generated = sanitizeTitle(raw);
+  } catch (err) {
+    // The static fallback below is the user-visible result, so log the cause.
+    ctx.logger.warn(
+      { err, chatId: params.chatId },
+      'generateChatTitle: AI title failed, using fallback',
+    );
   }
   const title = generated || buildFallbackChatTitle();
 
