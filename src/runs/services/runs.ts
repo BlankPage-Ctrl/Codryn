@@ -9,6 +9,7 @@ import type {
   SseFrame,
   SubChunkListener,
   SubLiveMeta,
+  SubLiveStatus,
 } from '../types/index.js';
 import { toSubRunKey } from '../engines/sub-key.js';
 
@@ -30,6 +31,7 @@ function createRunId(): string {
 export class RunsService implements IRunManager, ISubAgentLive {
   private readonly live = new Map<string, LiveRun>();
   private readonly subMeta = new Map<string, SubLiveMeta>();
+  private readonly subStatus = new Map<string, SubLiveStatus>();
   private readonly children = new Map<string, Set<string>>();
 
   constructor(private readonly repo: IRunRepository) {}
@@ -179,6 +181,7 @@ export class RunsService implements IRunManager, ISubAgentLive {
     const subKey = toSubRunKey(meta.parentRunId, meta.toolCallId);
     this.ensureLive(subKey);
     this.subMeta.set(subKey, { ...meta });
+    this.subStatus.set(subKey, 'running');
     let set = this.children.get(meta.parentRunId);
     if (!set) {
       set = new Set<string>();
@@ -193,6 +196,10 @@ export class RunsService implements IRunManager, ISubAgentLive {
     return meta ? { ...meta } : null;
   }
 
+  getSubStatus(subKey: string): SubLiveStatus | null {
+    return this.subStatus.get(subKey) ?? null;
+  }
+
   isSubOpen(subKey: string): boolean {
     if (!this.subMeta.has(subKey)) return false;
     const entry = this.live.get(subKey);
@@ -202,16 +209,19 @@ export class RunsService implements IRunManager, ISubAgentLive {
 
   publishSubChunk(subKey: string, line: string): boolean {
     if (!this.subMeta.has(subKey)) return false;
+    if (this.subStatus.get(subKey) !== 'running') return false;
     return this.publishChunk(subKey, line);
   }
 
   publishSubDone(subKey: string): void {
     if (!this.subMeta.has(subKey)) return;
+    if (this.subStatus.get(subKey) === 'running') this.subStatus.set(subKey, 'done');
     this.publishDone(subKey);
   }
 
   publishSubError(subKey: string, err: RunErrorInfo): void {
     if (!this.subMeta.has(subKey)) return;
+    if (this.subStatus.get(subKey) === 'running') this.subStatus.set(subKey, err.status);
     this.publishError(subKey, err);
   }
 

@@ -17,6 +17,8 @@ export { revertMessageRun } from './revert.message-run.js';
 export { previewMessageRun } from './preview.message-run.js';
 export { startMessageRun } from './start.message-run.js';
 export { watchMessageRun } from './watch.message-run.js';
+export { watchMessageSubrun } from './watch.message-subrun.js';
+export { killMessageSubrun } from './kill.message-subrun.js';
 export { getMessageRun } from './get.message-run.js';
 export { listMessageRuns } from './list.message-run.js';
 export { cancelMessageRun } from './cancel.message-run.js';

@@ -4,7 +4,7 @@ import {
   type MessagesService,
   type IStreamingPersister,
 } from '../../src/messages/index.js';
-import { mapFeedChunk } from './chat-feed/index.js';
+import { mapFeedChunk, type FeedDraft } from './chat-feed/index.js';
 import type { FeedBridge } from './chat-feed/bridge.js';
 import type { Logger } from './types.js';
 
@@ -108,6 +108,88 @@ export function createStepRecorder(deps: StepRecorderDeps): {
       ...(inputTokens !== undefined ? { inputTokens } : {}),
       ...(outputTokens !== undefined ? { outputTokens } : {}),
       ...(totalTokens !== undefined ? { totalTokens } : {}),
+    });
+  };
+
+  return {
+    onChunk,
+    onStepFinish,
+    getStats: () => ({ stepCount, lastFinishReason }),
+  };
+}
+
+export interface SubFeedRecorderDeps {
+  bridge: FeedBridge;
+  logger: Logger;
+  /**
+   * Rewrites a child tool call id so it matches the workspace-global side
+   * channel that shares it: `<parentRunId>:<toolCallId>`.
+   */
+  scopeToolCallId?: (toolName: string, toolCallId: string) => string;
+}
+
+export interface SubFeedRecorder {
+  onChunk: (args: { chunk: TextStreamPart<ToolSet> }) => void;
+  onStepFinish: (event: RawStepFinish) => void;
+  getStats: () => StepStats;
+}
+
+function scopeWorkDraft(
+  draft: FeedDraft,
+  scope: (toolName: string, toolCallId: string) => string,
+): FeedDraft {
+  if (
+    draft.name !== 'work-queued' &&
+    draft.name !== 'work-active' &&
+    draft.name !== 'work-ok' &&
+    draft.name !== 'work-bad'
+  ) {
+    return draft;
+  }
+  // SAFE: work-* payloads always carry `implement` + `callId`; the guard confirms both.
+  const payload = draft.payload as { implement?: unknown; callId?: unknown };
+  if (payload.implement !== 'run_shell' || typeof payload.callId !== 'string') return draft;
+  const scoped = scope('run_shell', payload.callId);
+  return {
+    name: draft.name,
+    payload: { ...draft.payload, callId: scoped, sliceId: scoped } as FeedDraft['payload'],
+  };
+}
+
+/**
+ * Child-run feed recorder: mirrors agent stream chunks to a child feed bridge
+ * without any database persistence. Steps are only surfaced as `stage-close`.
+ */
+export function createSubFeedRecorder(deps: SubFeedRecorderDeps): SubFeedRecorder {
+  const { bridge, logger } = deps;
+  let stepCount = 0;
+  let lastFinishReason: string | undefined;
+  let feedStage = 0;
+
+  const onChunk = ({ chunk }: { chunk: TextStreamPart<ToolSet> }): void => {
+    try {
+      const drafts = mapFeedChunk(chunk, { ...bridge.scope, stage: feedStage });
+      for (const draft of drafts) {
+        const next = deps.scopeToolCallId ? scopeWorkDraft(draft, deps.scopeToolCallId) : draft;
+        if (next.name === 'stage-open') feedStage += 1;
+        // SAFE: drafts are correlated name+payload pairs built by
+        // mapFeedChunk; the bus expects the matching payload type.
+        bridge.emitSafe(next.name, next.payload as never);
+      }
+    } catch (err) {
+      logger.error({ err, runId: bridge.scope.runId }, 'sub feed map failed');
+    }
+  };
+
+  const onStepFinish = (event: RawStepFinish): void => {
+    const stageIndex = stepCount;
+    stepCount += 1;
+    lastFinishReason = event.finishReason;
+    bridge.emitSafe('stage-close', {
+      ...bridge.scope,
+      stage: stageIndex,
+      landed: event.finishReason,
+      at: Date.now(),
     });
   };
 

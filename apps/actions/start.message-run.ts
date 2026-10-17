@@ -15,9 +15,12 @@ import {
 import { buildMessageRunToolset } from '../agent/message-toolset.js';
 import {
   createSubAgentTool,
+  filterChildTools,
   loadSubAgentsForWorkspace,
   matchModelHint,
 } from '../agent/subagents/index.js';
+import { createShellTool } from '../agent/tools/index.js';
+import { resolveShellPermissionViaHitl } from '../shared/shell-permission.js';
 import { toProviderConfig } from '../providers/translate.js';
 import { createFeedBridge } from '../shared/chat-feed/bridge.js';
 import { createStepRecorder } from '../shared/run-steps.js';
@@ -312,6 +315,32 @@ export async function startMessageRun(
               onRichResult: handleRich,
               logger: ctx.logger,
               ...(liveSignal ? { signal: liveSignal } : {}),
+              subLive: ctx.runService,
+              parentRun: {
+                parentRunId: runId,
+                chatId: params.chatId,
+                workspaceId: params.workspaceId,
+                assistantMessageId,
+              },
+              childToolset: ({ baseTools: tools, def, scope, onRichResult }) => {
+                const filtered = filterChildTools(tools, def);
+                return filtered.map((tool) => {
+                  if (tool.name !== 'run_shell') return tool;
+                  const [scoped] = createShellTool(shellConsumer, {
+                    chatId: params.chatId,
+                    runId: scope.subKey,
+                    callScope: scope.parentRunId,
+                    resolvePermission: (pending) =>
+                      resolveShellPermissionViaHitl(ctx.hitlService, pending, {
+                        workspaceRoot: workspace.projectPath,
+                        logger: ctx.logger,
+                        ...(liveSignal ? { signal: liveSignal } : {}),
+                      }),
+                    onRichResult,
+                  });
+                  return scoped ?? tool;
+                });
+              },
             });
             return [...baseTools, ...delegateTools];
           };

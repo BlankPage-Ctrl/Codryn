@@ -55,6 +55,7 @@ function toRunResult(outcome: ShellOutcome) {
 export interface ShellToolOptions {
   chatId?: string;
   runId?: string;
+  callScope?: string;
 
   signal?: AbortSignal;
   /**
@@ -99,7 +100,13 @@ export function createShellTool(
       { command, cwd, timeoutMs }: z.infer<typeof runShellSchema>,
       toolOptions?: AgentToolExecuteOptions,
     ) => {
-      const toolCallId = toolOptions?.toolCallId ?? null;
+      const rawToolCallId = toolOptions?.toolCallId ?? null;
+      // Child scopes prefix the call id so shell events stay unambiguous
+      // across the workspace-global watcher.
+      const toolCallId =
+        rawToolCallId != null && opts.callScope
+          ? `${opts.callScope}:${rawToolCallId}`
+          : rawToolCallId;
       // Minted upfront so an abort racing the execution can kill the live
       // process with the same id the service tracks.
       const executionId = randomUUID();

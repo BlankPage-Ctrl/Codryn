@@ -9,6 +9,7 @@ import {
   parseSubAgentFile,
 } from '../../apps/agent/subagents/index.js';
 import type { AgentClient, AgentTool, ResolvedModel } from '../../src/agent/index.js';
+import type { ISubAgentLive, SubLiveMeta } from '../../src/runs/index.js';
 
 function stubTool(name: string): AgentTool {
   return {
@@ -39,9 +40,12 @@ const PARENT_MODEL: ResolvedModel = {
   modelId: 'parent-model',
 };
 
-function mockAgent(text = 'child answer'): Pick<AgentClient, 'generate'> {
+function mockAgent(text = 'child answer'): Pick<AgentClient, 'loop'> {
   return {
-    generate: (async () => ({ text })) as unknown as Pick<AgentClient, 'generate'>['generate'],
+    loop: (async () => ({ text: Promise.resolve(text) })) as unknown as Pick<
+      AgentClient,
+      'loop'
+    >['loop'],
   };
 }
 
@@ -168,11 +172,11 @@ test('createSubAgentTool returns no tool without agents and lists names on miss'
 
 test('createSubAgentTool runs the child and falls back to parent model', async () => {
   let seenModel: ResolvedModel | null = null;
-  const agent: Pick<AgentClient, 'generate'> = {
-    generate: (async (opts: { model: ResolvedModel }) => {
+  const agent: Pick<AgentClient, 'loop'> = {
+    loop: (async (opts: { model: ResolvedModel }) => {
       seenModel = opts.model;
-      return { text: 'child answer' };
-    }) as unknown as Pick<AgentClient, 'generate'>['generate'],
+      return { text: Promise.resolve('child answer') };
+    }) as unknown as Pick<AgentClient, 'loop'>['loop'],
   };
   const agents = [{ ...BUILTIN_SUBAGENTS[0]!, modelHint: 'stale-model' }];
   const [tool] = createSubAgentTool({
@@ -191,16 +195,16 @@ test('createSubAgentTool runs the child and falls back to parent model', async (
   assert.deepEqual(seenModel, PARENT_MODEL);
 });
 
-function rejectingAgent(err: unknown): Pick<AgentClient, 'generate'> {
+function rejectingAgent(err: unknown): Pick<AgentClient, 'loop'> {
   return {
-    generate: (async () => {
+    loop: (async () => {
       throw err;
-    }) as unknown as Pick<AgentClient, 'generate'>['generate'],
+    }) as unknown as Pick<AgentClient, 'loop'>['loop'],
   };
 }
 
 function delegateWith(
-  agent: Pick<AgentClient, 'generate'>,
+  agent: Pick<AgentClient, 'loop'>,
   extra?: { signal?: AbortSignal },
 ): NonNullable<ReturnType<typeof createSubAgentTool>[number]> {
   const [tool] = createSubAgentTool({
@@ -264,4 +268,98 @@ test('delegate prefers the tool call signal over the stored signal', async () =>
     { signal: AbortSignal.abort() },
   )) as string;
   assert.ok(out.includes('`CHILD_ABORTED`'));
+});
+
+function fakeSubLive(): {
+  live: ISubAgentLive;
+  subs: SubLiveMeta[];
+  chunks: string[];
+  done: string[];
+  errors: string[];
+} {
+  const subs: SubLiveMeta[] = [];
+  const chunks: string[] = [];
+  const done: string[] = [];
+  const errors: string[] = [];
+  const live: ISubAgentLive = {
+    ensureSub: (meta) => {
+      subs.push(meta);
+      return `sub:${meta.parentRunId}:${meta.toolCallId}`;
+    },
+    getSubMeta: (subKey) => subs.find((s) => `sub:${s.parentRunId}:${s.toolCallId}` === subKey) ?? null,
+    getSubStatus: () => 'running',
+    isSubOpen: () => true,
+    publishSubChunk: (_subKey, line) => {
+      chunks.push(line);
+      return true;
+    },
+    publishSubDone: (subKey) => {
+      done.push(subKey);
+    },
+    publishSubError: (subKey) => {
+      errors.push(subKey);
+    },
+    subscribeSub: () => () => {},
+    framesSub: () => [],
+    killSub: () => true,
+    killSubsForRun: () => ({ killedCount: 0 }),
+  };
+  return { live, subs, chunks, done, errors };
+}
+
+test('delegate streams a child run through subLive and scopes shell feed ids', async () => {
+  const def = BUILTIN_SUBAGENTS[0]!;
+  const agent = {
+    loop: (async (opts: {
+      onChunk?: (event: { chunk: Record<string, unknown> }) => void;
+    }) => {
+      opts.onChunk?.({
+        chunk: { type: 'tool-call', toolCallId: 'call_shell', toolName: 'run_shell', input: {} },
+      });
+      opts.onChunk?.({
+        chunk: { type: 'text-delta', id: 't1', text: 'working' },
+      });
+      return { text: Promise.resolve('child answer') };
+    }) as unknown as Pick<AgentClient, 'loop'>['loop'],
+  };
+  const { live, subs, chunks, done } = fakeSubLive();
+  let scopedArgs: { scope?: { subKey: string; parentRunId: string } } | null = null;
+
+  const [tool] = createSubAgentTool({
+    agents: [def],
+    parentModel: PARENT_MODEL,
+    agent,
+    baseTools: BASE_TOOLS,
+    resolveModelHint: async () => null,
+    subLive: live,
+    parentRun: {
+      parentRunId: 'run_parent',
+      chatId: 'chat-1',
+      workspaceId: 'ws-1',
+      assistantMessageId: 'msg-1',
+    },
+    childToolset: (args) => {
+      scopedArgs = args;
+      return args.baseTools;
+    },
+    logger: { info() {}, error() {}, warn() {}, debug() {} },
+  });
+
+  const out = (await tool!.execute(
+    { agent_name: def.name, task: 'find auth code' },
+    { toolCallId: 'call_1' },
+  )) as string;
+
+  assert.ok(out.includes('child answer'));
+  assert.equal(subs.length, 1);
+  assert.equal(subs[0]!.toolCallId, 'call_1');
+  assert.equal(subs[0]!.parentRunId, 'run_parent');
+  assert.equal(scopedArgs!.scope!.subKey, 'sub:run_parent:call_1');
+  assert.deepEqual(done, ['sub:run_parent:call_1']);
+  assert.ok(chunks.some((line) => line.includes('"type":"run-open"')));
+  assert.ok(chunks.some((line) => line.includes('"delta":"working"')));
+  assert.ok(
+    chunks.some((line) => line.includes('run_parent:call_shell')),
+    'shell tool-call feed ids must be prefixed with the parent run id',
+  );
 });

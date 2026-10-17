@@ -9,6 +9,10 @@ export const RunIdParamsSchema = RunParamsSchema.extend({
   runId: z.string().min(1),
 });
 
+export const SubRunIdParamsSchema = RunIdParamsSchema.extend({
+  toolCallId: z.string().min(1),
+});
+
 export const WatchRunQuerySchema = z.object({
   afterSeq: z.coerce.number().int().min(0).optional().default(0),
 });
@@ -19,6 +23,10 @@ export function validateRunParams(params: unknown) {
 
 export function validateRunIdParams(params: unknown) {
   return RunIdParamsSchema.parse(params);
+}
+
+export function validateSubRunIdParams(params: unknown) {
+  return SubRunIdParamsSchema.parse(params);
 }
 
 export function validateWatchRunQuery(query: unknown) {

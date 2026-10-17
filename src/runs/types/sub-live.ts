@@ -16,9 +16,12 @@ export interface SubChunkListener {
   onError: (err: RunErrorInfo) => void;
 }
 
+export type SubLiveStatus = 'running' | 'done' | 'failed' | 'cancelled';
+
 export interface ISubAgentLive {
   ensureSub(meta: SubLiveMeta): string;
   getSubMeta(subKey: string): SubLiveMeta | null;
+  getSubStatus(subKey: string): SubLiveStatus | null;
   isSubOpen(subKey: string): boolean;
   publishSubChunk(subKey: string, line: string): boolean;
   publishSubDone(subKey: string): void;

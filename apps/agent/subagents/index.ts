@@ -22,4 +22,11 @@ export {
   type HintModelRecord,
   type HintProviderRecord,
 } from './model-hint.js';
-export { createSubAgentTool, delegateTaskSchema, type DelegateToolDeps } from './delegate.js';
+export {
+  createSubAgentTool,
+  delegateTaskSchema,
+  type DelegateToolDeps,
+  type ChildRunScope,
+  type ChildToolScope,
+  type ChildToolsetArgs,
+} from './delegate.js';

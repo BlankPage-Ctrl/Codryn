@@ -8,10 +8,14 @@ import {
   type ResolvedModel,
   type ThinkingLevel,
 } from '../../../src/agent/index.js';
+import type { ISubAgentLive } from '../../../src/runs/index.js';
+import { toSubRunKey } from '../../../src/runs/index.js';
 import type { OnRichResult } from '../tools/rich-result.js';
 import { formatSubAgentError } from '../tools/format.js';
 import { isAbortError, mapAiError } from '../../shared/ai-errors/index.js';
 import type { Logger } from '../../shared/types.js';
+import { createFeedBridge, type FeedBridge } from '../../shared/chat-feed/bridge.js';
+import { createSubFeedRecorder, type SubFeedRecorder } from '../../shared/run-steps.js';
 import { describeSubAgents } from './registry.js';
 import { filterChildTools } from './filter.js';
 import { DELEGATE_TOOL_NAME, MAX_SUBAGENT_OUTPUT_CHARS, type SubAgentDef } from './types.js';
@@ -26,10 +30,30 @@ export const delegateTaskSchema = z.object({
     .describe('Self-contained task: goal, context, and expected result'),
 });
 
+export interface ChildRunScope {
+  parentRunId: string;
+  chatId: string;
+  workspaceId: string;
+  assistantMessageId: string;
+}
+
+export interface ChildToolScope extends ChildRunScope {
+  subKey: string;
+  toolCallId: string;
+  agentName: string;
+}
+
+export interface ChildToolsetArgs {
+  baseTools: AgentTool[];
+  def: SubAgentDef;
+  scope: ChildToolScope;
+  onRichResult: OnRichResult;
+}
+
 export interface DelegateToolDeps {
   agents: SubAgentDef[];
   parentModel: ResolvedModel;
-  agent: Pick<AgentClient, 'generate'>;
+  agent: Pick<AgentClient, 'loop'>;
   baseTools: AgentTool[];
   resolveModelHint: (hint: string) => Promise<ResolvedModel | null>;
   thinkingLevel?: ThinkingLevel;
@@ -37,6 +61,9 @@ export interface DelegateToolDeps {
   onRichResult?: OnRichResult;
   logger?: Logger;
   signal?: AbortSignal;
+  subLive?: ISubAgentLive;
+  parentRun?: ChildRunScope;
+  childToolset?: (args: ChildToolsetArgs) => AgentTool[];
 }
 
 function truncate(text: string): { text: string; truncated: boolean } {
@@ -84,9 +111,77 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
           deps.agents.map((a) => a.name),
         );
       }
-      const toolCallId = toolOptions?.toolCallId;
+      const toolCallId = toolOptions?.toolCallId ?? null;
       const parentSignal = toolOptions?.signal ?? deps.signal;
-      const childTools = filterChildTools(deps.baseTools, def);
+
+      // parent run id (`sub:<parentRunId>:<toolCallId>`).
+      const scope: ChildToolScope | null =
+        deps.parentRun && toolCallId
+          ? {
+              subKey: toSubRunKey(deps.parentRun.parentRunId, toolCallId),
+              parentRunId: deps.parentRun.parentRunId,
+              chatId: deps.parentRun.chatId,
+              workspaceId: deps.parentRun.workspaceId,
+              assistantMessageId: deps.parentRun.assistantMessageId,
+              toolCallId,
+              agentName: def.name,
+            }
+          : null;
+
+      let bridge: FeedBridge | null = null;
+      if (scope && deps.subLive) {
+        deps.subLive.ensureSub({
+          parentRunId: scope.parentRunId,
+          chatId: scope.chatId,
+          workspaceId: scope.workspaceId,
+          assistantMessageId: scope.assistantMessageId,
+          toolCallId: scope.toolCallId,
+          agentName: scope.agentName,
+        });
+        if (deps.logger) {
+          bridge = createFeedBridge({
+            publishChunk: (line) => {
+              deps.subLive?.publishSubChunk(scope.subKey, line);
+            },
+            logger: deps.logger,
+            runId: scope.subKey,
+            chatId: scope.chatId,
+            assistantMessageId: scope.subKey,
+          });
+        }
+      }
+
+      const childRich: OnRichResult = (rich) => {
+        if (!bridge) return;
+        try {
+          bridge.emitSafe('notice', {
+            ...bridge.scope,
+            sliceId: `${rich.toolCallId}:rich:${rich.implement}`,
+            callId: rich.toolCallId,
+            implement: rich.implement,
+            body: rich.body,
+            at: Date.now(),
+          });
+        } catch {
+          // Rich forward is best-effort, the text result is the contract.
+        }
+      };
+
+      const recorder: SubFeedRecorder | null =
+        bridge && deps.logger
+          ? createSubFeedRecorder({
+              bridge,
+              logger: deps.logger,
+              ...(scope
+                ? { scopeToolCallId: (_toolName: string, id: string) => `${scope.parentRunId}:${id}` }
+                : {}),
+            })
+          : null;
+
+      const childTools =
+        deps.childToolset && scope
+          ? deps.childToolset({ baseTools: deps.baseTools, def, scope, onRichResult: childRich })
+          : filterChildTools(deps.baseTools, def);
 
       let model = deps.parentModel;
       let fallback: string | null = null;
@@ -104,18 +199,21 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
       let text: string;
       let truncated: boolean;
       try {
-        const result = await deps.agent.generate({
+        const result = await deps.agent.loop({
           model,
           system: def.systemPrompt,
-          prompt: task,
+          messages: [{ role: 'user', content: task }],
           tools: buildToolset(childTools),
           stopWhen: stepCountIs(def.maxSteps),
+          ...(recorder
+            ? { onChunk: recorder.onChunk, onStepFinish: recorder.onStepFinish }
+            : {}),
           ...(deps.thinkingLevel ? { thinkingLevel: deps.thinkingLevel } : {}),
           ...(deps.maxOutputTokens != null ? { maxOutputTokens: deps.maxOutputTokens } : {}),
           maxRetries: 2,
           abortSignal: childSignal(parentSignal, def.timeoutMs),
         });
-        const capped = truncate(result.text);
+        const capped = truncate(await result.text);
         text = capped.text;
         truncated = capped.truncated;
       } catch (err) {
@@ -127,19 +225,32 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
             { agentName: def.name, timeoutMs: def.timeoutMs, parentCancelled },
             parentCancelled ? 'subagent aborted by run cancel' : 'subagent timed out',
           );
-          return formatSubAgentError(
-            parentCancelled ? 'CHILD_ABORTED' : 'CHILD_TIMEOUT',
-            parentCancelled
-              ? `Sub-agent "${def.name}" stopped because the run was cancelled.`
-              : `Sub-agent "${def.name}" timed out after ${def.timeoutMs}ms.`,
-          );
+          const code = parentCancelled ? 'CHILD_ABORTED' : 'CHILD_TIMEOUT';
+          const message = parentCancelled
+            ? `Sub-agent "${def.name}" stopped because the run was cancelled.`
+            : `Sub-agent "${def.name}" timed out after ${def.timeoutMs}ms.`;
+          if (scope) {
+            deps.subLive?.publishSubError(scope.subKey, {
+              status: parentCancelled ? 'cancelled' : 'failed',
+              code,
+              message,
+            });
+          }
+          return formatSubAgentError(code, message);
         }
         const mapped = mapAiError(err);
-        return formatSubAgentError(
-          'CHILD_FAILED',
-          `Sub-agent "${def.name}" failed. ${mapped.message}`,
-        );
+        const message = `Sub-agent "${def.name}" failed. ${mapped.message}`;
+        if (scope) {
+          deps.subLive?.publishSubError(scope.subKey, {
+            status: 'failed',
+            code: mapped.code,
+            message: mapped.message,
+          });
+        }
+        return formatSubAgentError('CHILD_FAILED', message);
       }
+
+      if (scope) deps.subLive?.publishSubDone(scope.subKey);
 
       if (toolCallId && deps.onRichResult) {
         try {
@@ -151,6 +262,7 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
               fallback,
               truncated,
               toolCount: childTools.length,
+              ...(scope ? { subKey: scope.subKey } : {}),
             },
           });
         } catch {
