@@ -1,6 +1,7 @@
 export type { SubAgentDef, SubAgentMode, SubAgentWarning } from './types.js';
 export {
   DELEGATE_TOOL_NAME,
+  DESCRIBE_SUBAGENT_TOOL_NAME,
   DEFAULT_SUBAGENT_MAX_STEPS,
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   MAX_SUBAGENT_MAX_STEPS,
@@ -25,6 +26,7 @@ export {
 export {
   createSubAgentTool,
   delegateTaskSchema,
+  describeSubagentSchema,
   type DelegateToolDeps,
   type ChildRunScope,
   type ChildToolScope,

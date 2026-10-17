@@ -265,6 +265,11 @@ export async function startMessageRun(
           // Parent tools first, then the delegate tool on top. The child
           // reuses a filtered copy of the parent tools and can never
           // delegate further, so depth stays at one level.
+          const { agents: subagents } = await loadSubAgentsForWorkspace({
+            fileRepo: ctx.fileRepo,
+            projectPath: workspace.projectPath,
+            logger: ctx.logger,
+          });
           const buildRunTools = async () => {
             const liveSignal = getAbortSignal();
             const baseTools = buildMessageRunToolset({
@@ -285,11 +290,6 @@ export async function startMessageRun(
               mcpTools,
               pluginTools: pluginLoad.tools,
               onRichResult: handleRich,
-              logger: ctx.logger,
-            });
-            const { agents: subagents } = await loadSubAgentsForWorkspace({
-              fileRepo: ctx.fileRepo,
-              projectPath: workspace.projectPath,
               logger: ctx.logger,
             });
             const delegateTools = createSubAgentTool({
@@ -355,6 +355,7 @@ export async function startMessageRun(
               ...(agentsMd ? { agentsMd } : {}),
               insightEnabled,
               ...(pluginBootstrap ? { pluginBootstrap } : {}),
+              subAgentNames: subagents.map((a) => a.name),
             }),
             messages,
             tools: buildToolset(await buildRunTools()),

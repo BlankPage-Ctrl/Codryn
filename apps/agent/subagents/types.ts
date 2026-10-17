@@ -22,6 +22,7 @@ export interface SubAgentWarning {
 }
 
 export const DELEGATE_TOOL_NAME = 'delegate_task';
+export const DESCRIBE_SUBAGENT_TOOL_NAME = 'describe_subagent';
 
 export const DEFAULT_SUBAGENT_MAX_STEPS = 20;
 export const MAX_SUBAGENT_MAX_STEPS = 50;

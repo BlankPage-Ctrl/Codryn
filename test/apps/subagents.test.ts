@@ -170,6 +170,30 @@ test('createSubAgentTool returns no tool without agents and lists names on miss'
   assert.ok(miss.includes('**Suggestion**'));
 });
 
+test('createSubAgentTool exposes describe_subagent with and without a name', async () => {
+  const tools = createSubAgentTool({
+    agents: BUILTIN_SUBAGENTS,
+    parentModel: PARENT_MODEL,
+    agent: mockAgent(),
+    baseTools: BASE_TOOLS,
+    resolveModelHint: async () => null,
+  });
+  const delegate = tools.find((t) => t.name === 'delegate_task')!;
+  const describeTool = tools.find((t) => t.name === 'describe_subagent')!;
+  assert.ok(delegate && describeTool);
+  assert.ok(!delegate.description.includes('Available sub-agents'));
+
+  const one = (await describeTool.execute({ agent_name: 'explorer' }, {})) as string;
+  assert.ok(one.startsWith('explorer: '));
+  assert.ok(one.includes(BUILTIN_SUBAGENTS[0]!.description));
+
+  const all = (await describeTool.execute({}, {})) as string;
+  assert.ok(all.includes('explorer: '));
+
+  const miss = (await describeTool.execute({ agent_name: 'nope' }, {})) as string;
+  assert.ok(miss.includes('`UNKNOWN_AGENT`'));
+});
+
 test('createSubAgentTool runs the child and falls back to parent model', async () => {
   let seenModel: ResolvedModel | null = null;
   const agent: Pick<AgentClient, 'loop'> = {

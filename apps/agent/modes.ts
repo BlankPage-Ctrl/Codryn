@@ -75,6 +75,7 @@ export interface IdentitySystemPromptInput {
   agentsMd?: string | null;
   insightEnabled?: boolean | null;
   pluginBootstrap?: string | null;
+  subAgentNames?: string[];
 }
 
 function buildIdentitySection(): string {
@@ -100,11 +101,20 @@ function buildEnvironmentSection(projectPath: string, insightEnabled?: boolean |
   return lines.join('\n');
 }
 
+function buildSubAgentsSection(names: string[] | undefined): string | undefined {
+  if (!names || names.length === 0) return undefined;
+  return [
+    '# Sub-agents',
+    `You can delegate tasks to these sub-agents: <${names.join(', ')}>.`,
+  ].join('\n');
+}
+
 export function buildIdentitySystemPrompt(input: IdentitySystemPromptInput): string | undefined {
   const skillPart = composeSystemPrompt(input.base, input.skills);
   const sections = [
     buildIdentitySection(),
     buildEnvironmentSection(input.projectPath, input.insightEnabled),
+    buildSubAgentsSection(input.subAgentNames),
     input.agentsMd ?? undefined,
     skillPart,
     input.pluginBootstrap ?? undefined,

@@ -16,18 +16,37 @@ import { isAbortError, mapAiError } from '../../shared/ai-errors/index.js';
 import type { Logger } from '../../shared/types.js';
 import { createFeedBridge, type FeedBridge } from '../../shared/chat-feed/bridge.js';
 import { createSubFeedRecorder, type SubFeedRecorder } from '../../shared/run-steps.js';
-import { describeSubAgents } from './registry.js';
 import { filterChildTools } from './filter.js';
-import { DELEGATE_TOOL_NAME, MAX_SUBAGENT_OUTPUT_CHARS, type SubAgentDef } from './types.js';
+import {
+  DELEGATE_TOOL_NAME,
+  DESCRIBE_SUBAGENT_TOOL_NAME,
+  MAX_SUBAGENT_OUTPUT_CHARS,
+  type SubAgentDef,
+} from './types.js';
 
 export const delegateTaskSchema = z.object({
-  agent_name: z.string().trim().min(1).max(64).describe('Sub-agent name from the available list'),
+  agent_name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .describe('Sub-agent name; see the sub-agents list in the system prompt'),
   task: z
     .string()
     .trim()
     .min(1)
     .max(20_000)
     .describe('Self-contained task: goal, context, and expected result'),
+});
+
+export const describeSubagentSchema = z.object({
+  agent_name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .optional()
+    .describe('Sub-agent name to describe. Omit to list every sub-agent.'),
 });
 
 export interface ChildRunScope {
@@ -85,7 +104,7 @@ function childSignal(parent: AbortSignal | undefined, timeoutMs: number): AbortS
   return AbortSignal.any([parent, AbortSignal.timeout(timeoutMs)]);
 }
 
-/** Single `delegate_task` tool. Returns [] when no sub-agents are registered. */
+/** `delegate_task` plus `describe_subagent`. Returns [] when no sub-agents are registered. */
 export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
   if (deps.agents.length === 0) return [];
   const byName = new Map(deps.agents.map((a) => [a.name, a]));
@@ -94,9 +113,8 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
     name: DELEGATE_TOOL_NAME,
     description: [
       'Delegate a self-contained task to a specialized sub-agent.',
-      'The child runs in its own context with a subset of your tools and returns only its final answer.',
+      'The child runs in its own context with a subset of your tools and returns only its final answer.',,
       'The task must carry all context: goal, relevant files, constraints, and expected result.',
-      `Available sub-agents: ${describeSubAgents(deps.agents)}.`,
     ].join(' '),
     inputSchema: delegateTaskSchema,
     execute: async (
@@ -277,5 +295,28 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
       return text;
     },
   };
-  return [tool];
+
+  const describeTool: AgentTool<typeof describeSubagentSchema> = {
+    name: DESCRIBE_SUBAGENT_TOOL_NAME,
+    description: [
+      'Describe what a sub-agent does.',
+    ].join(' '),
+    inputSchema: describeSubagentSchema,
+    execute: async ({ agent_name }: z.infer<typeof describeSubagentSchema>) => {
+      if (!agent_name) {
+        return deps.agents.map((a) => `${a.name}: ${a.description}`).join('\n');
+      }
+      const def = byName.get(agent_name);
+      if (!def) {
+        return formatSubAgentError(
+          'UNKNOWN_AGENT',
+          `Sub-agent "${agent_name}" not found.`,
+          deps.agents.map((a) => a.name),
+        );
+      }
+      return `${def.name}: ${def.description}`;
+    },
+  };
+
+  return [tool, describeTool];
 }
