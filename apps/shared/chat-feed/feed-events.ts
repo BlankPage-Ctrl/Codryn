@@ -3,6 +3,7 @@ export interface FeedRunOpen {
   chatId: string;
   assistantMessageId: string;
   at: number;
+  title?: string;
 }
 
 export type FeedRunCloseStatus = 'done' | 'failed' | 'cancelled';

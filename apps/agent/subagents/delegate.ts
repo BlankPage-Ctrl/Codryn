@@ -31,6 +31,12 @@ export const delegateTaskSchema = z.object({
     .min(1)
     .max(64)
     .describe('Sub-agent name; see the sub-agents list in the system prompt'),
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .describe('Short human-readable title for this sub-agent run.'),
   task: z
     .string()
     .trim()
@@ -60,6 +66,7 @@ export interface ChildToolScope extends ChildRunScope {
   subKey: string;
   toolCallId: string;
   agentName: string;
+  title: string;
 }
 
 export interface ChildToolsetArgs {
@@ -113,12 +120,12 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
     name: DELEGATE_TOOL_NAME,
     description: [
       'Delegate a self-contained task to a specialized sub-agent.',
-      'The child runs in its own context with a subset of your tools and returns only its final answer.',,
+      'The child runs in its own context with a subset of your tools and returns only its final answer.',
       'The task must carry all context: goal, relevant files, constraints, and expected result.',
     ].join(' '),
     inputSchema: delegateTaskSchema,
     execute: async (
-      { agent_name, task }: z.infer<typeof delegateTaskSchema>,
+      { agent_name, title, task }: z.infer<typeof delegateTaskSchema>,
       toolOptions?: AgentToolExecuteOptions,
     ) => {
       const def = byName.get(agent_name);
@@ -143,6 +150,7 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
               assistantMessageId: deps.parentRun.assistantMessageId,
               toolCallId,
               agentName: def.name,
+              title,
             }
           : null;
 
@@ -155,6 +163,7 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
           assistantMessageId: scope.assistantMessageId,
           toolCallId: scope.toolCallId,
           agentName: scope.agentName,
+          title: scope.title,
         });
         if (deps.logger) {
           bridge = createFeedBridge({
@@ -165,6 +174,7 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
             runId: scope.subKey,
             chatId: scope.chatId,
             assistantMessageId: scope.subKey,
+            title: scope.title,
           });
         }
       }
@@ -277,6 +287,7 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
             implement: DELEGATE_TOOL_NAME,
             body: {
               agentName: def.name,
+              title,
               fallback,
               truncated,
               toolCount: childTools.length,

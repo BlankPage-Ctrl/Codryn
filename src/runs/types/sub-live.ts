@@ -8,6 +8,7 @@ export interface SubLiveMeta {
   assistantMessageId: string;
   toolCallId: string;
   agentName: string;
+  title: string;
 }
 
 export interface SubChunkListener {

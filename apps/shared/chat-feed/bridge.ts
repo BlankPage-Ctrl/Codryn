@@ -20,6 +20,7 @@ export interface FeedBridgeDeps {
   runId: string;
   chatId: string;
   assistantMessageId: string;
+  title?: string;
 }
 
 /**
@@ -28,7 +29,7 @@ export interface FeedBridgeDeps {
  * `emitSafe` never throws - failures are logged with the run context.
  */
 export function createFeedBridge(deps: FeedBridgeDeps): FeedBridge {
-  const { publishChunk, logger, runId, chatId, assistantMessageId } = deps;
+  const { publishChunk, logger, runId, chatId, assistantMessageId, title } = deps;
   const feed = new ChatFeedBus();
   for (const name of CHAT_FEED_NAMES) {
     // SAFE: bridge forwards the correlated name+payload pair; every emit
@@ -60,6 +61,7 @@ export function createFeedBridge(deps: FeedBridgeDeps): FeedBridge {
     chatId,
     assistantMessageId,
     at: Date.now(),
+    ...(title ? { title } : {}),
   });
   return bridge;
 }

@@ -53,6 +53,7 @@ async function makeRunAndSub(svc: RunsService): Promise<{ runId: string; subKey:
     assistantMessageId: 'msg-1',
     toolCallId: 'call_1',
     agentName: 'explorer',
+    title: 'Find auth code',
   });
   return { runId: run.runId, subKey };
 }

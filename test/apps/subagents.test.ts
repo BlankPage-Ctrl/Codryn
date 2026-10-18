@@ -164,7 +164,10 @@ test('createSubAgentTool returns no tool without agents and lists names on miss'
     baseTools: BASE_TOOLS,
     resolveModelHint: async () => null,
   });
-  const miss = (await tool!.execute({ agent_name: 'nope', task: 'do it' }, {})) as string;
+  const miss = (await tool!.execute(
+    { agent_name: 'nope', title: 'Do it', task: 'do it' },
+    {},
+  )) as string;
   assert.ok(miss.includes('`UNKNOWN_AGENT`'));
   assert.ok(miss.includes('`explorer`'));
   assert.ok(miss.includes('**Suggestion**'));
@@ -211,7 +214,7 @@ test('createSubAgentTool runs the child and falls back to parent model', async (
     resolveModelHint: async () => null,
   });
   const out = (await tool!.execute(
-    { agent_name: 'explorer', task: 'find auth code' },
+    { agent_name: 'explorer', title: 'Find auth code', task: 'find auth code' },
     {},
   )) as string;
   assert.ok(out.includes('child answer'));
@@ -247,7 +250,7 @@ test('delegate classifies child timeout and cancellation', async () => {
   timeoutErr.name = 'AbortError';
   const timeoutTool = delegateWith(rejectingAgent(timeoutErr));
   const timedOut = (await timeoutTool.execute(
-    { agent_name: 'explorer', task: 'find auth code' },
+    { agent_name: 'explorer', title: 'Find auth code', task: 'find auth code' },
     {},
   )) as string;
   assert.ok(timedOut.includes('`CHILD_TIMEOUT`'));
@@ -257,7 +260,7 @@ test('delegate classifies child timeout and cancellation', async () => {
     signal: AbortSignal.abort(),
   });
   const cancelled = (await cancelledTool.execute(
-    { agent_name: 'explorer', task: 'find auth code' },
+    { agent_name: 'explorer', title: 'Find auth code', task: 'find auth code' },
     {},
   )) as string;
   assert.ok(cancelled.includes('`CHILD_ABORTED`'));
@@ -267,7 +270,7 @@ test('delegate classifies child timeout and cancellation', async () => {
 test('delegate maps provider failures to CHILD_FAILED', async () => {
   const tool = delegateWith(rejectingAgent(new Error('cipher operation failed')));
   const out = (await tool.execute(
-    { agent_name: 'explorer', task: 'find auth code' },
+    { agent_name: 'explorer', title: 'Find auth code', task: 'find auth code' },
     {},
   )) as string;
   assert.ok(out.includes('`CHILD_FAILED`'));
@@ -279,7 +282,7 @@ test('delegate treats TimeoutError as child timeout', async () => {
   timeoutErr.name = 'TimeoutError';
   const tool = delegateWith(rejectingAgent(timeoutErr));
   const out = (await tool.execute(
-    { agent_name: 'explorer', task: 'find auth code' },
+    { agent_name: 'explorer', title: 'Find auth code', task: 'find auth code' },
     {},
   )) as string;
   assert.ok(out.includes('`CHILD_TIMEOUT`'));
@@ -288,7 +291,7 @@ test('delegate treats TimeoutError as child timeout', async () => {
 test('delegate prefers the tool call signal over the stored signal', async () => {
   const tool = delegateWith(rejectingAgent(new Error('aborted')));
   const out = (await tool.execute(
-    { agent_name: 'explorer', task: 'find auth code' },
+    { agent_name: 'explorer', title: 'Find auth code', task: 'find auth code' },
     { signal: AbortSignal.abort() },
   )) as string;
   assert.ok(out.includes('`CHILD_ABORTED`'));
@@ -370,7 +373,7 @@ test('delegate streams a child run through subLive and scopes shell feed ids', a
   });
 
   const out = (await tool!.execute(
-    { agent_name: def.name, task: 'find auth code' },
+    { agent_name: def.name, title: 'Find auth code', task: 'find auth code' },
     { toolCallId: 'call_1' },
   )) as string;
 
@@ -378,9 +381,14 @@ test('delegate streams a child run through subLive and scopes shell feed ids', a
   assert.equal(subs.length, 1);
   assert.equal(subs[0]!.toolCallId, 'call_1');
   assert.equal(subs[0]!.parentRunId, 'run_parent');
+  assert.equal(subs[0]!.title, 'Find auth code');
   assert.equal(scopedArgs!.scope!.subKey, 'sub:run_parent:call_1');
   assert.deepEqual(done, ['sub:run_parent:call_1']);
-  assert.ok(chunks.some((line) => line.includes('"type":"run-open"')));
+  assert.ok(
+    chunks.some(
+      (line) => line.includes('"type":"run-open"') && line.includes('"title":"Find auth code"'),
+    ),
+  );
   assert.ok(chunks.some((line) => line.includes('"delta":"working"')));
   assert.ok(
     chunks.some((line) => line.includes('run_parent:call_shell')),
