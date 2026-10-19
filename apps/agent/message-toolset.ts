@@ -13,6 +13,7 @@ import type { AgentMode } from './modes.js';
 import {
   createCreateFileTool,
   createEditTool,
+  createGlobTool,
   createGrepTool,
   createHitlTool,
   createInsightGraphTool,
@@ -102,6 +103,10 @@ export function buildMessageRunToolset(deps: MessageToolsetDeps): AgentTool[] {
     });
   const tools: AgentTool[] = [
     ...createListFilesTool(fm.listDirService, {
+      onRichResult: deps.onRichResult,
+      resolvePermission: fmResolver,
+    }),
+    ...createGlobTool(fm.globService, {
       onRichResult: deps.onRichResult,
       resolvePermission: fmResolver,
     }),

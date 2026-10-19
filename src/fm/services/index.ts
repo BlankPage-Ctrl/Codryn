@@ -3,6 +3,7 @@ export { ListDirService } from './list-dir.js';
 export { ReadFileService } from './read-file.js';
 export { SearchFilesService } from './search-file.js';
 export { GrepService } from './grep.js';
+export { GlobService } from './glob.js';
 export { FileWatcherService } from './watcher.js';
 export { EditFileService } from './edit.js';
 export { CreateFileService } from './create-file.js';

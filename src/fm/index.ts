@@ -1,9 +1,10 @@
-export { FileRepository, GrepRepository, validateWorkspaceRoot } from './repository/index.js';
+export { FileRepository, GrepRepository, GlobRepository, validateWorkspaceRoot } from './repository/index.js';
 
 export {
   NodeFileSystem,
   NodeFileWatcher,
   GrepStorage,
+  GlobStorage,
   ColdFileHistoryStorage,
 } from './storages/cold/index.js';
 
@@ -13,6 +14,7 @@ export {
   ReadFileService,
   SearchFilesService,
   GrepService,
+  GlobService,
   FileWatcherService,
   EditFileService,
   CreateFileService,
@@ -97,6 +99,18 @@ export {
   type IGrepRepository,
   type IGrepService,
 } from './types/grep.js';
+
+export {
+  GlobDataSchema,
+  GlobOptionsSchema,
+  type GlobData,
+  type GlobOptions,
+  type RawGlobResult,
+  type GlobSearchInput,
+  type IGlobStorage,
+  type IGlobRepository,
+  type IGlobService,
+} from './types/glob.js';
 
 export {
   parseContentToLines,

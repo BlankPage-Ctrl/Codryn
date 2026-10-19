@@ -14,6 +14,9 @@ import type { HitlRequest } from '../../../src/human-in-the-loop/index.js';
 export const DEFAULT_LIST_LIMIT = 200;
 export const MAX_LIST_LIMIT = 500;
 
+export const DEFAULT_GLOB_LIMIT = 100;
+export const MAX_GLOB_LIMIT = 1000;
+
 /** Dir names hidden from list_files by default (mirrors DEFAULT_IGNORE_PATTERNS). */
 export const IGNORED_DIR_NAMES: ReadonlySet<string> = new Set(['node_modules', '.git', '.codryn']);
 
@@ -125,6 +128,43 @@ export function formatListDir(
     lines.push(
       `_${plural(filtered.length, 'entry', 'entries')} filtered (${filtered.map(safeName).join(', ')})_`,
     );
+  }
+
+  return [head, ...lines].join('\n');
+}
+
+export interface FormatGlobOptions {
+  limit?: number;
+  truncated?: boolean;
+}
+
+export function formatGlob(
+  pattern: string,
+  requestedPath: string,
+  nodes: FileNode[],
+  opts: FormatGlobOptions = {},
+): string {
+  const limit = Math.min(Math.max(1, Math.round(opts.limit ?? DEFAULT_GLOB_LIMIT)), MAX_GLOB_LIMIT);
+  const total = nodes.length;
+  const where = requestedPath === '/' ? 'workspace' : `\`${requestedPath}\``;
+
+  if (total === 0) {
+    return (
+      `No files match "${safeName(pattern)}" in ${where}.\n` +
+      '_Patterns use glob syntax: `*` stays within a segment, `**/` recurses (e.g. `**/*.ts`)._'
+    );
+  }
+
+  const shown = nodes.slice(0, limit);
+  const head =
+    total > shown.length
+      ? `Found ${total} files matching "${safeName(pattern)}" in ${where} — ${shown.length} shown (sorted by modification time, newest first)`
+      : `Found ${plural(total, 'file', 'files')} matching "${safeName(pattern)}" in ${where} (sorted by modification time, newest first)`;
+
+  const lines = shown.map((node) => `- \`${safeName(node.path)}\``);
+
+  if (total > shown.length || opts.truncated === true) {
+    lines.push('... more results (refine the pattern or narrow `path`)');
   }
 
   return [head, ...lines].join('\n');

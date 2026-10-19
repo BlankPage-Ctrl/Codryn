@@ -1,4 +1,5 @@
 export { createListFilesTool, listFilesSchema } from './listdir.js';
+export { createGlobTool, globSchema } from './glob.js';
 export { createReadFileTool, readFileSchema } from './readfile.js';
 export { createGrepTool, grepSchema, DEFAULT_GREP_LIMIT, MAX_GREP_LIMIT } from './grep.js';
 export type { GrepToolDeps } from './grep.js';
@@ -39,6 +40,7 @@ export type {
   EditFileRichBody,
   CreateFileRichBody,
   ListFilesRichBody,
+  GlobRichBody,
   ReadFileRichBody,
   RunShellRichBody,
   HitlRichBody,
@@ -47,12 +49,14 @@ export {
   toEditFileRichBody,
   toCreateFileRichBody,
   toListFilesRichBody,
+  toGlobRichBody,
   toReadFileRichBody,
   toRunShellRichBody,
   toHitlRichBody,
 } from './rich-result.js';
 export {
   formatListDir,
+  formatGlob,
   formatReadFile,
   formatGrep,
   formatGrepError,
@@ -68,5 +72,7 @@ export {
   humanizeSize,
   DEFAULT_LIST_LIMIT,
   MAX_LIST_LIMIT,
+  DEFAULT_GLOB_LIMIT,
+  MAX_GLOB_LIMIT,
 } from './format.js';
 export type { SubAgentErrorCode } from './format.js';

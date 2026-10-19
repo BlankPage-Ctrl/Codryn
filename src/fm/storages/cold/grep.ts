@@ -12,6 +12,7 @@ import type {
 import { PathNotFoundError } from '../../errors/not-found.js';
 import { StorageReadError } from '../../errors/storage.js';
 import { InvalidInputError } from '../../errors/validation.js';
+import { toIgnoreGlobs } from '../../utils/ignore-globs.js';
 
 /**
  * Cold storage adapter over the `rg` binary bundled by `@vscode/ripgrep`.
@@ -205,24 +206,6 @@ function buildArgs(input: GrepSearchInput): string[] {
   }
   args.push('--', input.pattern, ...input.paths);
   return args;
-}
-
-/**
- * Best-effort translation of a gitignore-syntax pattern to `rg --glob`
- * exclusions. `rg` globs match `cwd`-relative paths, so a bare name must be
- * expanded to any-depth forms to mirror `ignore`-package semantics.
- */
-function toIgnoreGlobs(pattern: string): string[] {
-  const trimmed = pattern.trim().replace(/\/+$/, '');
-  if (trimmed === '' || trimmed === '!') return [];
-  const negated = trimmed.startsWith('!');
-  const body = negated ? trimmed.slice(1) : trimmed;
-  const unrooted = body.startsWith('/') ? body.slice(1) : body;
-  const deny = negated ? '' : '!';
-  if (unrooted.includes('/') || unrooted.includes('*')) {
-    return [`${deny}${unrooted}`, `${deny}${unrooted}/**`];
-  }
-  return [`${deny}**/${unrooted}`, `${deny}**/${unrooted}/**`];
 }
 
 function runRg(cwd: string, args: string[], input: GrepSearchInput): Promise<GrepSearchResult> {

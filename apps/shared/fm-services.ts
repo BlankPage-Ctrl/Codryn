@@ -4,6 +4,9 @@ import {
   EditFileService,
   FileRevertService,
   GetStatService,
+  GlobRepository,
+  GlobService,
+  GlobStorage,
   GrepRepository,
   GrepService,
   GrepStorage,
@@ -22,6 +25,12 @@ export async function buildFmServices(ctx: Container, projectPath: string) {
     ignorePatterns,
     getStatService: new GetStatService(ctx.fileRepo, projectPath),
     listDirService: new ListDirService(ctx.fileRepo, projectPath, ignore),
+    globService: new GlobService(
+      new GlobRepository(new GlobStorage(), new NodeFileSystem()),
+      projectPath,
+      ignore,
+      new NodeFileSystem(),
+    ),
     readFileService: new ReadFileService(ctx.fileRepo, projectPath),
     searchFilesService: new SearchFilesService(ctx.fileRepo, projectPath, ignore),
     grepService: new GrepService(

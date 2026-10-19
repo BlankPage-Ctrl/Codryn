@@ -2,6 +2,7 @@ import type {
   CreateFileData,
   EditFileData,
   FileNode,
+  GlobData,
   ListDirData,
   ReadFileData,
 } from '../../../src/fm/index.js';
@@ -13,6 +14,16 @@ export interface ListFilesRichBody {
   requestedPath: string;
   nodes: FileNode[];
   total: number;
+  limit?: number;
+}
+
+export interface GlobRichBody {
+  toolCallId: string;
+  pattern: string;
+  requestedPath: string;
+  nodes: FileNode[];
+  total: number;
+  truncated: boolean;
   limit?: number;
 }
 
@@ -104,6 +115,22 @@ export function toListFilesRichBody(
     requestedPath: data.requestedPath,
     nodes: data.nodes,
     total: data.nodes.length,
+    ...(opts?.limit != null ? { limit: opts.limit } : {}),
+  };
+}
+
+export function toGlobRichBody(
+  toolCallId: string,
+  data: GlobData,
+  opts?: { limit?: number },
+): GlobRichBody {
+  return {
+    toolCallId,
+    pattern: data.pattern,
+    requestedPath: data.requestedPath,
+    nodes: data.nodes,
+    total: data.nodes.length,
+    truncated: data.truncated,
     ...(opts?.limit != null ? { limit: opts.limit } : {}),
   };
 }

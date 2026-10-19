@@ -1,7 +1,7 @@
 import { fail } from '../utils/result.js';
 import type { AbsolutePath, FmError, FmResult } from './index.js';
 
-export type FmOperation = 'read' | 'list' | 'stat' | 'search' | 'grep';
+export type FmOperation = 'read' | 'list' | 'stat' | 'search' | 'grep' | 'glob';
 
 export interface FmPermissionInput {
   operation: FmOperation;
