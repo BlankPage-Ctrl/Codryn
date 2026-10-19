@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createSecureDefaults, defaultTerminalPolicy } from '../engines/presets.js';
+import { defaultTerminalPolicy } from '../engines/presets.js';
 import { parseShell } from '../engines/parser.js';
 import { evaluatePolicy } from '../engines/policy.js';
 import { stripAnsiText } from '../engines/output.js';
@@ -22,6 +22,7 @@ import type {
   ShellPermissionCallback,
   ShellPermissionConfirmation,
   ShellPermissionInput,
+  TerminalPolicy,
 } from '../types/index.js';
 import type { ExecOutput } from '../types/index.js';
 import { ValidationError } from '../errors/validation.js';
@@ -65,6 +66,11 @@ export class ShellService implements IShellService {
     private readonly globalConfig: GlobalShellConfig,
     private readonly eventBus?: IShellExecEventBus,
   ) {}
+
+  /** Workspace policy used when the caller does not supply one. */
+  get defaultPolicy(): TerminalPolicy {
+    return defaultTerminalPolicy(this.globalConfig.defaultMode);
+  }
 
   /**
    * Routing metadata for live runs, keyed by execution id. Kept separate
@@ -180,10 +186,11 @@ export class ShellService implements IShellService {
       );
     }
 
-    const workspacePolicy = opts.policy ?? defaultTerminalPolicy();
-    const hardDeny = [...createSecureDefaults(), ...this.globalConfig.hardDeny];
+    const workspacePolicy = opts.policy ?? this.defaultPolicy;
+    const hardDeny = [...this.globalConfig.secureDeny, ...this.globalConfig.hardDeny];
     const decision = evaluatePolicy(parsed.segments, workspacePolicy, hardDeny, {
       shell: this.globalConfig.shell,
+      readonly: this.globalConfig.readonly,
     });
 
     if (decision.verdict === 'deny') {
@@ -309,10 +316,11 @@ export class ShellService implements IShellService {
             }
             return denied;
           }
-          const workspacePolicy = opts.policy ?? defaultTerminalPolicy();
-          const hardDeny = [...createSecureDefaults(), ...this.globalConfig.hardDeny];
+          const workspacePolicy = opts.policy ?? this.defaultPolicy;
+          const hardDeny = [...this.globalConfig.secureDeny, ...this.globalConfig.hardDeny];
           const modDecision = evaluatePolicy(parsedMod.segments, workspacePolicy, hardDeny, {
             shell: this.globalConfig.shell,
+            readonly: this.globalConfig.readonly,
           });
           if (modDecision.verdict === 'deny') {
             const denied = this.deny(

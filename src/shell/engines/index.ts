@@ -4,10 +4,7 @@ export { parsePowerShell, isPowerShellShell, normalizePowerShellCmd } from './po
 export { parsePattern, matchRule } from './rules.js';
 export { evaluatePolicy } from './policy.js';
 export {
-  READONLY_COMMANDS,
-  createSecureDefaults,
   defaultTerminalPolicy,
-  defaultGlobalShellConfig,
   defaultShellForPlatform,
 } from './presets.js';
 export { stripAnsiText, formatCommandOutput, truncateText } from './output.js';

@@ -5,10 +5,13 @@ import {
   parsePattern,
   matchRule,
   defaultTerminalPolicy,
-  createSecureDefaults,
   type PolicyDecision,
   type TerminalPolicy,
 } from '../../src/shell/index.js';
+import {
+  createSecureDefaults,
+  READONLY_COMMANDS,
+} from '../../apps/shared/shell-consumer.js';
 
 function makePolicy(overrides: Partial<TerminalPolicy>): TerminalPolicy {
   return { ...defaultTerminalPolicy(), ...overrides };
@@ -59,9 +62,11 @@ test('policy: command substitution forces ask', () => {
   assert.equal(d.verdict, 'ask');
 });
 
-test('policy: built-in read-only commands are allowed by default', () => {
+test('policy: read-only allowlist grants a bare read-only command', () => {
   const segments = [{ cmd: 'ls', args: ['-la'], reads: [], writes: [], hasCommandSubst: false }];
-  const d = evaluatePolicy(segments, defaultTerminalPolicy(), []);
+  const d = evaluatePolicy(segments, defaultTerminalPolicy(), [], {
+    readonly: [...READONLY_COMMANDS],
+  });
   assert.equal(d.verdict, 'allow');
   assert.equal(d.segments[0]?.match?.tier, 'readonly');
 });

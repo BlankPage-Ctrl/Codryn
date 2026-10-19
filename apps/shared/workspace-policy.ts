@@ -12,14 +12,17 @@ import {
 
 export const POLICY_RELATIVE_PATH = join('.codryn', 'terminal-policy.toml');
 
-export function loadWorkspacePolicy(workspaceRoot: string): TerminalPolicy {
+export function loadWorkspacePolicy(
+  workspaceRoot: string,
+  fallback: TerminalPolicy = defaultTerminalPolicy(),
+): TerminalPolicy {
   if (!existsSync(join(workspaceRoot, POLICY_RELATIVE_PATH))) {
-    return defaultTerminalPolicy();
+    return fallback;
   }
 
   const raw = loadToml(POLICY_RELATIVE_PATH, { basePath: workspaceRoot });
   const parsed = TerminalPolicySchema.safeParse(raw);
-  return parsed.success ? parsed.data : defaultTerminalPolicy();
+  return parsed.success ? parsed.data : fallback;
 }
 
 function normalizePattern(pattern: string): string | null {

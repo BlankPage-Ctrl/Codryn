@@ -6,7 +6,6 @@ import type {
   Verdict,
 } from '../types/index.js';
 import { matchRule, parsePattern } from './rules.js';
-import { READONLY_COMMANDS } from './presets.js';
 import { isPowerShellShell } from './powershell.js';
 
 /**
@@ -25,9 +24,12 @@ export function evaluatePolicy(
   segments: ShellSegment[],
   policy: TerminalPolicy,
   hardDeny: string[],
-  opts?: { shell?: string },
+  opts?: { shell?: string; readonly?: string[] },
 ): PolicyDecision {
-  const segDecisions = segments.map((segment) => evaluateSegment(segment, policy, hardDeny, opts));
+  const readonly = new Set<string>(opts?.readonly);
+  const segDecisions = segments.map((segment) =>
+    evaluateSegment(segment, policy, hardDeny, readonly, opts),
+  );
   const verdict = worstVerdict(segDecisions.map((d) => d.verdict));
   return { verdict, segments: segDecisions, requiresApproval: verdict === 'ask' };
 }
@@ -36,6 +38,7 @@ function evaluateSegment(
   segment: ShellSegment,
   policy: TerminalPolicy,
   hardDeny: string[],
+  readonly: Set<string>,
   opts?: { shell?: string },
 ): SegmentDecision {
   const ps = isPowerShellShell(opts?.shell);
@@ -73,7 +76,7 @@ function evaluateSegment(
       return { verdict: 'allow', match: { tier: 'workspace', pattern }, segment };
     }
   }
-  if (READONLY_COMMANDS.has(ps ? seg.cmd : segment.cmd)) {
+  if (readonly.has(ps ? seg.cmd : segment.cmd)) {
     return { verdict: 'allow', match: { tier: 'readonly' }, segment };
   }
   return { verdict: policy.mode, match: { tier: 'default' }, segment };

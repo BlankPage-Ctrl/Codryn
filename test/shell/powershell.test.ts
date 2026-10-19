@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  createSecureDefaults,
-  defaultGlobalShellConfig,
   defaultShellForPlatform,
   defaultTerminalPolicy,
   evaluatePolicy,
@@ -11,6 +9,11 @@ import {
   parsePowerShell,
   parseShell,
 } from '../../src/shell/index.js';
+import {
+  createSecureDefaults,
+  defaultGlobalShellConfig,
+  READONLY_COMMANDS,
+} from '../../apps/shared/shell-consumer.js';
 
 test('powershell: detected shell names', () => {
   assert.equal(isPowerShellShell('powershell.exe'), true);
@@ -84,6 +87,7 @@ test('powershell: readonly allows dir / Get-ChildItem case-insensitively', () =>
     if (!parsed.ok) continue;
     const d = evaluatePolicy(parsed.segments, defaultTerminalPolicy(), [], {
       shell: 'powershell.exe',
+      readonly: [...READONLY_COMMANDS],
     });
     assert.equal(d.verdict, 'allow', cmd);
   }
@@ -114,7 +118,7 @@ test('powershell: workspace allow pattern matches case-insensitively on cmd', ()
   if (!parsed.ok) return;
   const d = evaluatePolicy(
     parsed.segments,
-    { ...defaultTerminalPolicy(), mode: 'deny', allow: ['get-childitem'] },
+    { ...defaultTerminalPolicy(), mode: 'deny', allow: ['get-childitem:*'] },
     [],
     { shell: 'powershell.exe' },
   );

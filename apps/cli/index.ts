@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { Command } from 'commander';
 import { ConfigService, t, resolveDatabasePath } from '../../src/config/index.js';
 import { defaultShellForPlatform } from '../../src/shell/index.js';
+import { READONLY_COMMANDS, createSecureDefaults } from '../shared/shell-consumer.js';
 import { startServer } from '../server.js';
 import { startStdio } from '../stdio/index.js';
 import { registerCommands } from './commands/index.js';
@@ -26,6 +27,8 @@ const configShape = {
     defaultTimeoutMs: t.number().default(30_000),
     maxOutputChars: t.number().default(25_000),
     defaultMode: t.enum(['allow', 'ask', 'deny']).default('ask'),
+    readonly: t.array(t.string()).default([...READONLY_COMMANDS]),
+    secureDeny: t.array(t.string()).default(createSecureDefaults()),
     hardDeny: t.array(t.string()).default([]),
     approvalEnabled: t.boolean().default(true),
     approvalTtlMs: t.number().default(5 * 60_000),

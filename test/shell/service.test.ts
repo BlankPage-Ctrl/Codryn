@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
-  defaultGlobalShellConfig,
   defaultTerminalPolicy,
   isShellPendingApproval,
   ShellExecutor,
@@ -13,6 +12,7 @@ import {
   type GlobalShellConfig,
   type TerminalPolicy,
 } from '../../src/shell/index.js';
+import { defaultGlobalShellConfig } from '../../apps/shared/shell-consumer.js';
 
 function makeService(config: Partial<GlobalShellConfig> = {}) {
   return new ShellService(

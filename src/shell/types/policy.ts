@@ -44,6 +44,8 @@ export interface GlobalShellConfig {
   defaultTimeoutMs: number;
   maxOutputChars: number;
   defaultMode: Verdict;
+  readonly: string[];
+  secureDeny: string[];
   hardDeny: string[];
 }
 

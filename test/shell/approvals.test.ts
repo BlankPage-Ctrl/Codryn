@@ -4,13 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
-  defaultGlobalShellConfig,
   defaultTerminalPolicy,
   isShellPendingApproval,
   ShellExecutor,
   ShellRepository,
   ShellService,
 } from '../../src/shell/index.js';
+import { defaultGlobalShellConfig } from '../../apps/shared/shell-consumer.js';
 
 async function tempRoot(t: { after: (fn: () => void) => void }) {
   const dir = await mkdtemp(join(tmpdir(), 'shell-approvals-'));

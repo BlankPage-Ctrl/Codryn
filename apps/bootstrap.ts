@@ -24,9 +24,9 @@ import {
   ShellRepository,
   ShellService,
   ShellExecEventBus,
-  defaultGlobalShellConfig,
   type GlobalShellConfig,
 } from '../src/shell/index.js';
+import { defaultGlobalShellConfig } from './shared/shell-consumer.js';
 
 // @ Repository
 import { ClientRepository } from '../src/auth/index.js';

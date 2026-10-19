@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
-  defaultGlobalShellConfig,
   isShellPendingApproval,
   ShellExecEventBus,
   ShellExecutor,
@@ -14,6 +13,7 @@ import {
   ShellService,
   type TerminalPolicy,
 } from '../../src/shell/index.js';
+import { defaultGlobalShellConfig } from '../../apps/shared/shell-consumer.js';
 import type { ShellExecKilledPayload } from '../../src/shell/types/shell-events.js';
 
 const ALLOW_POLICY: TerminalPolicy = { mode: 'allow', allow: [], ask: [], deny: [] };

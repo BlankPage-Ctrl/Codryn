@@ -7,13 +7,13 @@ import { cancelMessageRun } from '../../apps/actions/cancel.message-run.js';
 import type { Container } from '../../apps/bootstrap.js';
 import { RunHotStorage, RunsRepository, RunsService } from '../../src/runs/index.js';
 import {
-  defaultGlobalShellConfig,
   ShellExecEventBus,
   ShellExecutor,
   ShellRepository,
   ShellService,
   type TerminalPolicy,
 } from '../../src/shell/index.js';
+import { defaultGlobalShellConfig } from '../../apps/shared/shell-consumer.js';
 
 const ALLOW_POLICY: TerminalPolicy = { mode: 'allow', allow: [], ask: [], deny: [] };
 const ASK_POLICY: TerminalPolicy = { mode: 'ask', allow: [], ask: [], deny: [] };

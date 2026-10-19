@@ -6,6 +6,8 @@ export interface ShellServerConfig {
   defaultTimeoutMs: number;
   maxOutputChars: number;
   defaultMode: Verdict;
+  readonly: string[];
+  secureDeny: string[];
   hardDeny: string[];
   approvalEnabled: boolean;
   approvalTtlMs: number;
