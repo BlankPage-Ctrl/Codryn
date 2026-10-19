@@ -131,6 +131,11 @@ export interface ReadFileOptions {
   endLine?: number;
 }
 
+export interface ReadFileServiceOptions {
+  /** Caller-provided risky-file patterns. Empty means no approval gate. */
+  sensitivePatterns?: readonly string[];
+}
+
 export enum WatchEventType {
   CREATED = 'CREATED',
   DELETED = 'DELETED',

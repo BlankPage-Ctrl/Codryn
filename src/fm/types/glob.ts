@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import type { FmOutcome } from './permission.js';
-import { FileNodeSchema } from './index.js';
+import { FileNodeSchema, type FmResult } from './index.js';
 
 /**
  * Result of a glob over the workspace. `nodes` mirrors `ListDirData.nodes`
@@ -53,5 +52,5 @@ export interface IGlobRepository {
 }
 
 export interface IGlobService {
-  glob(requestedPath: string, opts: GlobOptions): Promise<FmOutcome<GlobData>>;
+  glob(requestedPath: string, opts: GlobOptions): Promise<FmResult<GlobData>>;
 }

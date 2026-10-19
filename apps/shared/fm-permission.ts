@@ -3,6 +3,50 @@ import type { FmPendingApproval, FmPermissionInput, FmResult } from '../../src/f
 import { addFmAlwaysAllowed, fmAlwaysKey, isFmAlwaysAllowed } from './fm-always-allow.js';
 import type { Logger } from './types.js';
 
+
+/**
+ * Built-in risky-file patterns.
+ * Forms: exact/wildcard file name (`.env`, `*.pem`), `dir/` for any path
+ * segment, and `!` to negate an earlier match.
+ */
+export const SENSITIVE_FILE_PATTERNS = new Set([
+  // Environment files and package-manager credentials.
+  '.env',
+  '.env.*',
+  '.npmrc',
+  '.netrc',
+  '.pgpass',
+  '.htpasswd',
+  '.git-credentials',
+  // SSH and TLS private material.
+  'id_rsa',
+  'id_dsa',
+  'id_ecdsa',
+  'id_ed25519',
+  '*.pem',
+  '*.key',
+  '*.p12',
+  '*.pfx',
+  '*.p8',
+  '*.keystore',
+  '*.jks',
+  '*.ppk',
+  '*.kdbx',
+  // Cloud / tool credential stores.
+  'credentials',
+  'secrets',
+  'secret',
+  '.ssh/',
+  '.aws/',
+  '.gnupg/',
+  '.kube/',
+  // Templates carry no secret.
+  '!.env.example',
+  '!.env.sample',
+  '!.env.template',
+  '!.env.dist',
+]);
+
 export interface FmPermissionResolverOptions {
   workspaceId?: string | null;
   chatId?: string | null;
@@ -41,8 +85,11 @@ export async function resolveFmPermissionViaHitl<T>(
   const key = fmAlwaysKey(options.workspaceId, options.chatId);
   const paths =
     perm.outsidePaths && perm.outsidePaths.length > 0 ? perm.outsidePaths : [perm.absolutePath];
+  const sensitive = perm.sensitive === true;
 
-  if (key && paths.every((p) => isFmAlwaysAllowed(key, p))) {
+  // Sensitive reads always prompt; a previously approved directory must not
+  // silently cover a credential file inside it.
+  if (!sensitive && key && paths.every((p) => isFmAlwaysAllowed(key, p))) {
     return pending.confirm({ decision: 'allow' });
   }
 
@@ -52,13 +99,20 @@ export async function resolveFmPermissionViaHitl<T>(
       title:
         typeof options.title === 'function'
           ? options.title(perm)
-          : (options.title ?? `Read File approval: ${perm.requestedPath}`),
+          : (options.title ??
+            (sensitive
+              ? `Sensitive file approval: ${perm.requestedPath}`
+              : `Read File approval: ${perm.requestedPath}`)),
       description:
         options.description?.(perm) ??
-        `Read-only ${perm.operation} outside the workspace.\n` +
-          `Target: ${perm.absolutePath}\n` +
-          `Workspace: ${perm.workspaceRoot}` +
-          (perm.viaSymlink ? `\nReached via symlink: ${perm.symlinkPath ?? '(unknown)'}` : ''),
+        (sensitive
+          ? `Sensitive file read requires approval.\n` +
+            `Target: ${perm.absolutePath}\n` +
+            `Workspace: ${perm.workspaceRoot}`
+          : `Read-only ${perm.operation} outside the workspace.\n` +
+            `Target: ${perm.absolutePath}\n` +
+            `Workspace: ${perm.workspaceRoot}` +
+            (perm.viaSymlink ? `\nReached via symlink: ${perm.symlinkPath ?? '(unknown)'}` : '')),
       correlationId: options.correlationId,
       timeoutMs: options.timeoutMs,
       workspaceId: options.workspaceId ?? undefined,
@@ -71,6 +125,8 @@ export async function resolveFmPermissionViaHitl<T>(
         absolutePath: perm.absolutePath,
         workspaceRoot: perm.workspaceRoot,
         viaSymlink: perm.viaSymlink,
+        sensitive,
+        reason: perm.reason ?? (sensitive ? 'sensitive-file' : 'outside-workspace'),
       },
       payload: {
         contextPreview: {
@@ -81,6 +137,8 @@ export async function resolveFmPermissionViaHitl<T>(
           viaSymlink: perm.viaSymlink,
           symlinkPath: perm.symlinkPath ?? null,
           outsidePaths: paths,
+          sensitive,
+          reason: perm.reason ?? (sensitive ? 'sensitive-file' : 'outside-workspace'),
         },
         requireReasonOnReject: options.requireReasonOnReject,
       },
@@ -100,7 +158,7 @@ export async function resolveFmPermissionViaHitl<T>(
     }
 
     if (request.type === 'approval' && isApproved(request.response?.outcome)) {
-      if (request.response?.outcome === 'always_approved' && key) {
+      if (request.response?.outcome === 'always_approved' && key && !sensitive) {
         // Stored verbatim as directory-prefix entries: approving a directory
         // covers its subtree for this chat; approving a file covers just it.
         for (const p of paths) {

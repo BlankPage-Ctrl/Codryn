@@ -20,7 +20,11 @@ export const MAX_READFILE_VISIBLE_LINES = 300;
 
 export const readFileSchema = z
   .object({
-    path: z.string().describe('Relative path inside the workspace'),
+    path: z
+      .string()
+      .describe(
+        'Relative path inside the workspace, or an absolute path outside it. Sensitive files always require approval.',
+      ),
     startLine: z
       .number()
       .int()

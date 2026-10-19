@@ -1,7 +1,13 @@
 import path from 'node:path';
 import type { FileRepository } from '../repository/file.js';
-import type { FmResult, ReadFileData, ReadFileOptions } from '../types/index.js';
+import type {
+  FmResult,
+  ReadFileData,
+  ReadFileOptions,
+  ReadFileServiceOptions,
+} from '../types/index.js';
 import { createFmPendingApproval, type FmOutcome } from '../types/permission.js';
+import { SensitiveMatcher } from '../engines/sensitive.js';
 import { normalizeRequestedPath } from '../utils/path.js';
 import { mapFsError, ok } from '../utils/result.js';
 import { parseContentToLines, sliceLinesByRange, toLineNumberedResult } from '../utils/content.js';
@@ -9,10 +15,15 @@ import { parseContentToLines, sliceLinesByRange, toLineNumberedResult } from '..
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
 
 export class ReadFileService {
+  private readonly sensitive: SensitiveMatcher;
+
   constructor(
     private readonly repository: FileRepository,
     private readonly workspaceRoot: string,
-  ) {}
+    opts: ReadFileServiceOptions = {},
+  ) {
+    this.sensitive = new SensitiveMatcher(opts.sensitivePatterns ?? []);
+  }
 
   async readFile(
     requestedPath: string,
@@ -25,9 +36,12 @@ export class ReadFileService {
 
     try {
       const target = await this.repository.checkOutsideTarget(this.workspaceRoot, requestedPath);
-      if (!target.inside) {
-        // Outside the workspace: no FS access yet - hand a pending approval
-        // to the caller (agent tool => HITL), mirroring shell permission flow.
+      const sensitive =
+        this.sensitive.isSensitive(target.absolutePath) ||
+        this.sensitive.isSensitive(requestedPath);
+      // Sensitive reads are gated wherever the file lives; any other target,
+      // inside or outside the workspace, is read directly.
+      if (sensitive) {
         return createFmPendingApproval<ReadFileData>(
           {
             operation: 'read',
@@ -36,6 +50,8 @@ export class ReadFileService {
             workspaceRoot: path.resolve(this.workspaceRoot),
             viaSymlink: target.viaSymlink,
             ...(target.symlinkPath !== undefined ? { symlinkPath: target.symlinkPath } : {}),
+            reason: 'sensitive-file',
+            sensitive: true,
           },
           () =>
             this.readInside(target.absolutePath, requestedPath, {

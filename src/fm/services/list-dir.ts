@@ -2,7 +2,6 @@ import path from 'node:path';
 import type { FileRepository } from '../repository/file.js';
 import type { FmResult, ListDirData, ListDirOptions } from '../types/index.js';
 import type { IgnoreOptions } from '../types/ignore.js';
-import { createFmPendingApproval, type FmOutcome } from '../types/permission.js';
 import { normalizeRequestedPath } from '../utils/path.js';
 import { mapFsError, ok } from '../utils/result.js';
 import { FileType, type FileNode } from '../types/index.js';
@@ -18,23 +17,11 @@ export class ListDirService {
     this.ignorePatterns = [...(opts.ignorePatterns ?? [])];
   }
 
-  async listDir(requestedPath: string, opts: ListDirOptions = {}): Promise<FmOutcome<ListDirData>> {
+  async listDir(requestedPath: string, opts: ListDirOptions = {}): Promise<FmResult<ListDirData>> {
     try {
       const target = await this.repository.checkOutsideTarget(this.workspaceRoot, requestedPath);
-      if (!target.inside) {
-        return createFmPendingApproval<ListDirData>(
-          {
-            operation: 'list',
-            requestedPath,
-            absolutePath: target.absolutePath,
-            workspaceRoot: path.resolve(this.workspaceRoot),
-            viaSymlink: target.viaSymlink,
-            ...(target.symlinkPath !== undefined ? { symlinkPath: target.symlinkPath } : {}),
-          },
-          () => this.listInside(target.absolutePath, requestedPath, opts, true),
-        );
-      }
-      return await this.listInside(target.absolutePath, requestedPath, opts, false);
+      // Listing is always allowed; only the ignore filter differs outside.
+      return await this.listInside(target.absolutePath, requestedPath, opts, !target.inside);
     } catch (error) {
       return mapFsError(error, 'PATH_NOT_FOUND', normalizeRequestedPath(requestedPath));
     }

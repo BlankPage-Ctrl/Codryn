@@ -2,7 +2,11 @@ import 'dotenv/config';
 import { Command } from 'commander';
 import { ConfigService, t, resolveDatabasePath } from '../../src/config/index.js';
 import { defaultShellForPlatform } from '../../src/shell/index.js';
-import { READONLY_COMMANDS, createSecureDefaults } from '../shared/shell-consumer.js';
+import {
+  READONLY_COMMANDS,
+  createSecureDefaults,
+} from '../shared/shell-consumer.js';
+import { SENSITIVE_FILE_PATTERNS } from '../shared/fm-permission.js';
 import { startServer } from '../server.js';
 import { startStdio } from '../stdio/index.js';
 import { registerCommands } from './commands/index.js';
@@ -32,6 +36,9 @@ const configShape = {
     hardDeny: t.array(t.string()).default([]),
     approvalEnabled: t.boolean().default(true),
     approvalTtlMs: t.number().default(5 * 60_000),
+  },
+  files: {
+    sensitivePatterns: t.array(t.string()).default([...SENSITIVE_FILE_PATTERNS]),
   },
   mcp: {
     enabled: t.boolean().default(true),

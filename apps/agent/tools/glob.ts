@@ -2,21 +2,14 @@ import { z } from 'zod';
 import type { AgentTool, AgentToolExecuteOptions } from '../../../src/agent/index.js';
 import { toGlobRichBody, type OnRichResult } from './rich-result.js';
 import type { FmResult, GlobData, GlobService } from '../../../src/fm/index.js';
-import { isFmPendingApproval } from '../../../src/fm/index.js';
-import type { FmPermissionResolver } from '../../shared/fm-permission.js';
 import { DEFAULT_GLOB_LIMIT, MAX_GLOB_LIMIT, formatGlob, formatToolError } from './format.js';
 
 export const globSchema = z.object({
-  pattern: z
-    .string()
-    .min(1)
-    .describe(
-      'Glob pattern to match file.',
-    ),
+  pattern: z.string().min(1).describe('Glob pattern to match file.'),
   path: z
     .string()
     .default('.')
-    .describe('Directory to search in, relative to the workspace.'),
+    .describe('Directory to search in, relative to the workspace or absolute.'),
   limit: z
     .number()
     .int()
@@ -30,10 +23,7 @@ export const globSchema = z.object({
     .describe('Show gitignored entries (node_modules/.git/.gitignore matches).'),
 });
 
-function toGlobResult(
-  result: FmResult<GlobData>,
-  opts?: { limit?: number },
-): string {
+function toGlobResult(result: FmResult<GlobData>, opts?: { limit?: number }): string {
   if (!result.success) {
     return formatToolError(result.error.code, result.error.message);
   }
@@ -45,10 +35,7 @@ function toGlobResult(
 
 export function createGlobTool(
   glob: Pick<GlobService, 'glob'>,
-  options?: {
-    onRichResult?: OnRichResult;
-    resolvePermission?: FmPermissionResolver<GlobData>;
-  },
+  options?: { onRichResult?: OnRichResult },
 ): AgentTool[] {
   const globTool: AgentTool<typeof globSchema> = {
     name: 'glob',
@@ -56,22 +43,11 @@ export function createGlobTool(
       'Find files by name pattern across the workspace. Supports glob patterns like ' +
       '"**/*.ts", "src/**/*.{ts,tsx}, etc.".',
     inputSchema: globSchema,
-    execute: async ({ pattern, path, limit, includeIgnored }, toolOptions?: AgentToolExecuteOptions) => {
+    execute: async (
+      { pattern, path, limit, includeIgnored },
+      toolOptions?: AgentToolExecuteOptions,
+    ) => {
       const result = await glob.glob(path, { pattern, includeIgnored, maxResults: limit });
-      if (isFmPendingApproval(result)) {
-        if (!options?.resolvePermission) {
-          return formatToolError(result.error.code, result.error.message);
-        }
-        const outcome = await options.resolvePermission(result, toolOptions?.toolCallId);
-        if (outcome.success && toolOptions?.toolCallId && options?.onRichResult) {
-          options.onRichResult({
-            toolCallId: toolOptions.toolCallId,
-            implement: 'glob',
-            body: toGlobRichBody(toolOptions.toolCallId, outcome.data, { limit }),
-          });
-        }
-        return toGlobResult(outcome, { limit });
-      }
       if (result.success && toolOptions?.toolCallId && options?.onRichResult) {
         options.onRichResult({
           toolCallId: toolOptions.toolCallId,

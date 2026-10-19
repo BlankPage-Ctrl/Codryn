@@ -28,6 +28,7 @@ export async function startServer(
       dbPath: config.database.path,
       defaultClientSecretKey: config.auth.defaultClientSecretKey,
       shell: config.shell,
+      files: config.files,
       mcp: config.mcp,
       plugins: config.plugins,
     },

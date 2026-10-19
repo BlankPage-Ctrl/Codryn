@@ -104,11 +104,9 @@ export function buildMessageRunToolset(deps: MessageToolsetDeps): AgentTool[] {
   const tools: AgentTool[] = [
     ...createListFilesTool(fm.listDirService, {
       onRichResult: deps.onRichResult,
-      resolvePermission: fmResolver,
     }),
     ...createGlobTool(fm.globService, {
       onRichResult: deps.onRichResult,
-      resolvePermission: fmResolver,
     }),
     ...createReadFileTool(fm.readFileService, {
       onRichResult: deps.onRichResult,

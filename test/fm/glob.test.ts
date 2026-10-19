@@ -78,7 +78,10 @@ test('glob: default ignores hide node_modules; includeIgnored bypasses', async (
   const filtered = await service.glob('', { pattern: '**/*.js' });
   assert.equal(filtered.success, true);
   if (!filtered.success) return;
-  assert.deepEqual(filtered.data.nodes.map((n) => n.name), ['app.js']);
+  assert.deepEqual(
+    filtered.data.nodes.map((n) => n.name),
+    ['app.js'],
+  );
 
   const shown = await service.glob('', { pattern: '**/*.js', includeIgnored: true });
   assert.equal(shown.success, true);
@@ -96,7 +99,10 @@ test('glob: workspace ignorePatterns applied', async (t) => {
   const result = await service.glob('', { pattern: '**/*.js' });
   assert.equal(result.success, true);
   if (!result.success) return;
-  assert.deepEqual(result.data.nodes.map((n) => n.name), ['app.js']);
+  assert.deepEqual(
+    result.data.nodes.map((n) => n.name),
+    ['app.js'],
+  );
 });
 
 test('glob: caps results and flags truncation', async (t) => {
@@ -113,21 +119,17 @@ test('glob: caps results and flags truncation', async (t) => {
   assert.equal(result.data.truncated, true);
 });
 
-test('glob: outside root needs approval, confirm searches it', async (t) => {
+test('glob: outside root searches directly (no pending)', async (t) => {
   const dir = await setup(t);
   const outside = await setup(t);
   await writeFile(join(outside, 'secret.ts'), 'x');
 
   const service = makeService(dir);
   const result = await service.glob(outside, { pattern: '**/*.ts' });
-  assert.equal(isFmPendingApproval(result), true);
-  if (!isFmPendingApproval(result)) return;
-  assert.equal(result.permission.operation, 'glob');
-
-  const after = await result.confirm({ decision: 'allow' });
-  assert.equal(after.success, true);
-  if (!after.success) return;
-  assert.ok(after.data.nodes.some((n) => n.name === 'secret.ts'));
+  assert.equal(isFmPendingApproval(result), false);
+  assert.equal(result.success, true);
+  if (!result.success) return;
+  assert.ok(result.data.nodes.some((n) => n.name === 'secret.ts'));
 });
 
 test('formatGlob: header, paths, truncation marker', () => {

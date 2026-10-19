@@ -27,7 +27,7 @@ import {
   type GlobalShellConfig,
 } from '../src/shell/index.js';
 import { defaultGlobalShellConfig } from './shared/shell-consumer.js';
-
+import { SENSITIVE_FILE_PATTERNS } from './shared/fm-permission.js';
 // @ Repository
 import { ClientRepository } from '../src/auth/index.js';
 import { ChatRepository } from '../src/chat/index.js';
@@ -58,7 +58,7 @@ import { SettingsService } from '../src/settings/index.js';
 import { WorkspacesService } from '../src/workspaces/index.js';
 import { MessagesService } from '../src/messages/index.js';
 import { NotesService, CategoriesService } from '../src/notes/index.js';
-import type { Logger, PluginServerConfig } from './shared/types.js';
+import type { FileServerConfig, Logger, PluginServerConfig } from './shared/types.js';
 import { fallbackLogger } from './shared/logging/fallback.js';
 import { DEFAULT_MCP_CONFIG, McpManager, type McpManagerConfig } from './mcp/manager.js';
 import {
@@ -81,6 +81,7 @@ export interface Container {
   providerStore: ProviderStore;
   fileRepo: FileRepository;
   fileSystem: NodeFileSystem;
+  fileSensitivePatterns: string[];
   fileHistoryStorage: ColdFileHistoryStorage;
   agent: AgentClient;
   shellService: ShellService;
@@ -102,6 +103,7 @@ export interface BootstrapConfig {
   dbPath: string;
   defaultClientSecretKey: string;
   shell?: BootstrapShellConfig;
+  files?: Partial<FileServerConfig>;
   mcp?: Partial<McpManagerConfig>;
   plugins?: Partial<PluginServerConfig>;
 }
@@ -152,6 +154,7 @@ export async function bootstrap(
   const notesRepo = new NotesRepository(coldNotesStorage);
   const categoriesRepo = new CategoriesRepository(coldCategoriesStorage);
   const fileRepo = new FileRepository(nodeFileSystem);
+  const fileSensitivePatterns = config.files?.sensitivePatterns ?? [...SENSITIVE_FILE_PATTERNS];
   const fileHistoryStorage = new ColdFileHistoryStorage(db);
   const hitlRepo = new HitlRepository(coldHitlStorage);
   const hitlService = new HitlService(hitlRepo);
@@ -226,6 +229,7 @@ export async function bootstrap(
     providerStore,
     fileRepo,
     fileSystem: nodeFileSystem,
+    fileSensitivePatterns,
     fileHistoryStorage,
     agent: createAgent({
       reasoning: buildReasoningOptions,

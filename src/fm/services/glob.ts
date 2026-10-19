@@ -6,7 +6,6 @@ import { GlobOptionsSchema } from '../types/glob.js';
 import type { IgnoreOptions } from '../types/ignore.js';
 import { DEFAULT_IGNORE_PATTERNS } from '../types/ignore.js';
 import type { IFileSystem } from '../types/file-system.js';
-import { createFmPendingApproval, type FmOutcome } from '../types/permission.js';
 import { classifyWorkspacePath, normalizeRequestedPath, toRelativePath } from '../utils/path.js';
 import { resolveOutsideTarget, type OutsideTarget } from '../utils/outside.js';
 import { mapFsError, ok } from '../utils/result.js';
@@ -46,7 +45,7 @@ export class GlobService implements IGlobService {
     };
   }
 
-  async glob(requestedPath: string, opts: GlobOptions): Promise<FmOutcome<GlobData>> {
+  async glob(requestedPath: string, opts: GlobOptions): Promise<FmResult<GlobData>> {
     const normalizedRequestedPath = requestedPath === '' ? '/' : requestedPath;
 
     try {
@@ -61,33 +60,12 @@ export class GlobService implements IGlobService {
       const root = path.resolve(this.workspaceRoot);
 
       const target = await this.probeRef(root, requestedPath);
-      if (!target.inside) {
-        return createFmPendingApproval<GlobData>(
-          {
-            operation: 'glob',
-            requestedPath,
-            absolutePath: target.absolutePath,
-            workspaceRoot: root,
-            viaSymlink: target.viaSymlink,
-            ...(target.symlinkPath !== undefined ? { symlinkPath: target.symlinkPath } : {}),
-          },
-          () =>
-            this.globInside(
-              target.absolutePath,
-              normalizedRequestedPath,
-              options,
-              true,
-              normalizedRequestedPath,
-            ),
-        );
-      }
-
       const relative = toRelativePath(root, target.absolutePath);
       return await this.globInside(
-        relative === '/' ? '.' : relative,
+        target.inside ? (relative === '/' ? '.' : relative) : target.absolutePath,
         normalizedRequestedPath,
         options,
-        false,
+        !target.inside,
         requestedPath,
       );
     } catch (error) {

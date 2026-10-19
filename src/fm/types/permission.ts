@@ -3,6 +3,8 @@ import type { AbsolutePath, FmError, FmResult } from './index.js';
 
 export type FmOperation = 'read' | 'list' | 'stat' | 'search' | 'grep' | 'glob';
 
+export type FmPermissionReason = 'outside-workspace' | 'sensitive-file';
+
 export interface FmPermissionInput {
   operation: FmOperation;
   /** workspace-relative or absolute */
@@ -16,6 +18,10 @@ export interface FmPermissionInput {
   symlinkPath?: string;
   /** All outside absolute roots for multi-root ops (grep folders/files). */
   outsidePaths?: AbsolutePath[];
+  /** Why approval is required. Legacy callers default to outside-workspace. */
+  reason?: FmPermissionReason;
+  /** True when the target matches the caller-provided sensitive patterns. */
+  sensitive?: boolean;
 }
 
 export type FmPermissionDecision = 'allow' | 'deny';
@@ -50,6 +56,8 @@ export interface FmPendingApproval<T = unknown> {
       operation: FmOperation;
       requestedPath: string;
       absolutePath: AbsolutePath;
+      reason: FmPermissionReason;
+      sensitive: boolean;
     };
   };
   permission: FmPermissionInput;
@@ -74,25 +82,31 @@ export function createFmPendingApproval<T>(
   permission: FmPermissionInput,
   executor: () => Promise<FmResult<T>>,
 ): FmPendingApproval<T> {
+  const sensitive = permission.sensitive === true;
+  const reason = permission.reason ?? (sensitive ? 'sensitive-file' : 'outside-workspace');
   const denied = (why: string): FmError =>
     fail(
       'PERMISSION_DENIED',
-      `Outside-workspace ${permission.operation} rejected (${why}): "${permission.requestedPath}"`,
+      `${sensitive ? 'Sensitive-file' : 'Outside-workspace'} ${permission.operation} rejected (${why}): "${permission.requestedPath}"`,
       { operation: permission.operation, absolutePath: permission.absolutePath },
     );
   return {
     success: false,
     error: {
       code: 'REQUIRES_APPROVAL',
-      message:
-        `Path is outside the workspace: "${permission.requestedPath}" ` +
-        `(resolves to "${permission.absolutePath}") - requires user approval`,
+      message: sensitive
+        ? `Sensitive file requires user approval: "${permission.requestedPath}" ` +
+          `(resolves to "${permission.absolutePath}")`
+        : `Path is outside the workspace: "${permission.requestedPath}" ` +
+          `(resolves to "${permission.absolutePath}") - requires user approval`,
       statusCode: 403,
       details: {
         requiresApproval: true as const,
         operation: permission.operation,
         requestedPath: permission.requestedPath,
         absolutePath: permission.absolutePath,
+        reason,
+        sensitive,
       },
     },
     permission,

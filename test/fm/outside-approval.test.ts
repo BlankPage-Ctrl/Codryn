@@ -24,6 +24,7 @@ import {
   fmAlwaysKey,
   isFmAlwaysAllowed,
 } from '../../apps/shared/fm-always-allow.js';
+import { SENSITIVE_FILE_PATTERNS } from '../../apps/shared/fm-permission.js';
 
 interface Ctx {
   ws: string;
@@ -48,7 +49,9 @@ async function setup(t: { after: (fn: () => unknown) => void }): Promise<Ctx> {
   return {
     ws,
     outside,
-    readFile: new ReadFileService(repo, ws),
+    readFile: new ReadFileService(repo, ws, {
+      sensitivePatterns: [...SENSITIVE_FILE_PATTERNS],
+    }),
     listDir: new ListDirService(repo, ws),
     stat: new GetStatService(repo, ws),
     search: new SearchFilesService(repo, ws),
@@ -75,38 +78,62 @@ test('read: inside file succeeds directly (no pending)', async (t) => {
   assert.equal(result.success, true);
 });
 
-test('read: outside nonexistent path returns pending WITHOUT fs access', async (t) => {
+test('read: outside nonexistent path reports PATH_NOT_FOUND directly', async (t) => {
   const { outside, readFile } = await setup(t);
   // join() with an absolute segment yields an absolute outside path.
   const result = await readFile.readFile(join(outside, 'nope.txt'));
-  assert.equal(isFmPendingApproval(result), true);
-  if (!isFmPendingApproval(result)) return;
-  assert.equal(result.error.code, 'REQUIRES_APPROVAL');
-  // Approving runs the op, which then reports the real fs error.
-  const after = await result.confirm({ decision: 'allow' });
-  assert.equal(after.success, false);
-  if (after.success) return;
-  assert.equal(after.error.code, 'PATH_NOT_FOUND');
+  assert.equal(isFmPendingApproval(result), false);
+  assert.equal(result.success, false);
+  if (result.success) return;
+  assert.equal(result.error.code, 'PATH_NOT_FOUND');
 });
 
-test('read: outside real file pending → confirm allow reads content', async (t) => {
+test('read: outside non-sensitive file succeeds directly (no pending)', async (t) => {
   const { outside, readFile } = await setup(t);
-  await writeFile(join(outside, 'secret.txt'), 'outside-content');
-  const result = await readFile.readFile(join(outside, 'secret.txt'));
+  await writeFile(join(outside, 'notes.txt'), 'outside-content');
+  const result = await readFile.readFile(join(outside, 'notes.txt'));
+  assert.equal(isFmPendingApproval(result), false);
+  assert.equal(result.success, true);
+  if (!result.success) return;
+  assert.match(result.data.content, /outside-content/);
+});
+
+test('read: sensitive file inside workspace requires approval', async (t) => {
+  const { ws, readFile } = await setup(t);
+  await writeFile(join(ws, '.env'), 'API_KEY=secret');
+  const result = await readFile.readFile('.env');
   assert.equal(isFmPendingApproval(result), true);
   if (!isFmPendingApproval(result)) return;
   assert.equal(result.permission.operation, 'read');
-  assert.equal(result.permission.viaSymlink, false);
+  assert.equal(result.permission.sensitive, true);
+  assert.equal(result.permission.reason, 'sensitive-file');
   const after = await result.confirm({ decision: 'allow' });
   assert.equal(after.success, true);
   if (!after.success) return;
-  assert.match(after.data.content, /outside-content/);
+  assert.match(after.data.content, /API_KEY/);
 });
 
-test('read: pending abort/deny yields PERMISSION_DENIED', async (t) => {
+test('read: sensitive file outside workspace requires approval', async (t) => {
   const { outside, readFile } = await setup(t);
-  await writeFile(join(outside, 's.txt'), 'x');
-  const denied = await readFile.readFile(join(outside, 's.txt'));
+  await writeFile(join(outside, '.env.local'), 'TOKEN=secret');
+  const result = await readFile.readFile(join(outside, '.env.local'));
+  assert.equal(isFmPendingApproval(result), true);
+  if (!isFmPendingApproval(result)) return;
+  assert.equal(result.permission.sensitive, true);
+});
+
+test('read: env template is not treated as sensitive', async (t) => {
+  const { ws, readFile } = await setup(t);
+  await writeFile(join(ws, '.env.example'), 'API_KEY=');
+  const result = await readFile.readFile('.env.example');
+  assert.equal(isFmPendingApproval(result), false);
+  assert.equal(result.success, true);
+});
+
+test('read: sensitive pending abort/deny yields PERMISSION_DENIED', async (t) => {
+  const { ws, readFile } = await setup(t);
+  await writeFile(join(ws, '.env'), 'x');
+  const denied = await readFile.readFile('.env');
   assert.equal(isFmPendingApproval(denied), true);
   if (!isFmPendingApproval(denied)) return;
   const d = await denied.confirm({ decision: 'deny' });
@@ -114,7 +141,7 @@ test('read: pending abort/deny yields PERMISSION_DENIED', async (t) => {
   if (d.success) return;
   assert.equal(d.error.code, 'PERMISSION_DENIED');
 
-  const pending2 = await readFile.readFile(join(outside, 's.txt'));
+  const pending2 = await readFile.readFile('.env');
   assert.equal(isFmPendingApproval(pending2), true);
   if (!isFmPendingApproval(pending2)) return;
   const a = await pending2.abort();
@@ -122,52 +149,42 @@ test('read: pending abort/deny yields PERMISSION_DENIED', async (t) => {
   assert.equal(a.error.code, 'PERMISSION_DENIED');
 });
 
-test('read: symlink inside → outside counts as outside (viaSymlink)', async (t) => {
+test('read: symlink inside to non-sensitive outside file succeeds directly', async (t) => {
   const { ws, outside, readFile } = await setup(t);
   await writeFile(join(outside, 'real.txt'), 'linked');
   await symlink(join(outside, 'real.txt'), join(ws, 'link.txt'));
   const result = await readFile.readFile('link.txt');
-  assert.equal(isFmPendingApproval(result), true);
-  if (!isFmPendingApproval(result)) return;
-  assert.equal(result.permission.viaSymlink, true);
-  const after = await result.confirm({ decision: 'allow' });
-  assert.equal(after.success, true);
+  assert.equal(isFmPendingApproval(result), false);
+  assert.equal(result.success, true);
 });
 
-test('list: ancestor dir symlink to outside counts as outside', async (t) => {
+test('list: ancestor dir symlink to outside lists directly', async (t) => {
   const { ws, outside, listDir } = await setup(t);
   await writeFile(join(outside, 'f.txt'), 'x');
   await symlink(outside, join(ws, 'ext'));
   const result = await listDir.listDir('ext');
-  assert.equal(isFmPendingApproval(result), true);
-  if (!isFmPendingApproval(result)) return;
-  assert.equal(result.permission.viaSymlink, true);
-  const after = await result.confirm({ decision: 'allow' });
-  assert.equal(after.success, true);
-  if (!after.success) return;
-  assert.ok(after.data.nodes.some((n) => n.name === 'f.txt'));
+  assert.equal(isFmPendingApproval(result), false);
+  assert.equal(result.success, true);
+  if (!result.success) return;
+  assert.ok(result.data.nodes.some((n) => n.name === 'f.txt'));
 });
 
-test('list: outside dir pending → confirm lists entries', async (t) => {
+test('list: outside dir lists directly (no pending)', async (t) => {
   const { outside, listDir } = await setup(t);
   await writeFile(join(outside, 'g.txt'), 'x');
   const result = await listDir.listDir(outside);
-  assert.equal(isFmPendingApproval(result), true);
-  if (!isFmPendingApproval(result)) return;
-  const after = await result.confirm({ decision: 'allow' });
-  assert.equal(after.success, true);
-  if (!after.success) return;
-  assert.ok(after.data.nodes.some((n) => n.name === 'g.txt'));
+  assert.equal(isFmPendingApproval(result), false);
+  assert.equal(result.success, true);
+  if (!result.success) return;
+  assert.ok(result.data.nodes.some((n) => n.name === 'g.txt'));
 });
 
-test('stat + search: outside paths need approval', async (t) => {
+test('stat: outside path succeeds directly; search still needs approval', async (t) => {
   const { outside, stat, search } = await setup(t);
   await writeFile(join(outside, 'needle-file.txt'), 'x');
   const s = await stat.getStat(join(outside, 'needle-file.txt'));
-  assert.equal(isFmPendingApproval(s), true);
-  if (!isFmPendingApproval(s)) return;
-  const sAfter = await s.confirm({ decision: 'allow' });
-  assert.equal(sAfter.success, true);
+  assert.equal(isFmPendingApproval(s), false);
+  assert.equal(s.success, true);
 
   const q = await search.searchFiles(outside, 'needle');
   assert.equal(isFmPendingApproval(q), true);

@@ -18,7 +18,8 @@ import {
 import { loadGitignorePatterns } from './gitignore.js';
 
 export async function buildFmServices(ctx: Container, projectPath: string) {
-  const probe = new ReadFileService(ctx.fileRepo, projectPath);
+  const sensitivePatterns = ctx.fileSensitivePatterns;
+  const probe = new ReadFileService(ctx.fileRepo, projectPath, { sensitivePatterns });
   const ignorePatterns = await loadGitignorePatterns(probe);
   const ignore = { ignorePatterns };
   return {
@@ -31,7 +32,7 @@ export async function buildFmServices(ctx: Container, projectPath: string) {
       ignore,
       new NodeFileSystem(),
     ),
-    readFileService: new ReadFileService(ctx.fileRepo, projectPath),
+    readFileService: new ReadFileService(ctx.fileRepo, projectPath, { sensitivePatterns }),
     searchFilesService: new SearchFilesService(ctx.fileRepo, projectPath, ignore),
     grepService: new GrepService(
       new GrepRepository(new GrepStorage()),

@@ -13,6 +13,10 @@ export interface ShellServerConfig {
   approvalTtlMs: number;
 }
 
+export interface FileServerConfig {
+  sensitivePatterns: string[];
+}
+
 export interface McpServerConfig {
   enabled: boolean;
   toolsEnabled: boolean;
@@ -49,6 +53,7 @@ export interface ServerConfig {
   database: { path: string };
   auth: { defaultClientSecretKey: string };
   shell: ShellServerConfig;
+  files: FileServerConfig;
   mcp: McpServerConfig;
   plugins: PluginServerConfig;
   logging: LoggingServerConfig;

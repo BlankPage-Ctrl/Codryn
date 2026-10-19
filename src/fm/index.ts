@@ -1,4 +1,9 @@
-export { FileRepository, GrepRepository, GlobRepository, validateWorkspaceRoot } from './repository/index.js';
+export {
+  FileRepository,
+  GrepRepository,
+  GlobRepository,
+  validateWorkspaceRoot,
+} from './repository/index.js';
 
 export {
   NodeFileSystem,
@@ -45,6 +50,7 @@ export {
   type ContentLine,
   type ReadFileData,
   type ReadFileOptions,
+  type ReadFileServiceOptions,
   type SearchFilesData,
   type SearchFilesOptions,
   type WatchEvent,
@@ -60,6 +66,8 @@ export {
 } from './types/ignore.js';
 
 export { IgnoreFilter } from './engines/ignore.js';
+export { SensitiveMatcher } from './engines/sensitive.js';
+export type { ISensitiveMatcher } from './types/sensitive.js';
 
 export {
   EditHintSchema,
@@ -174,6 +182,7 @@ export {
   isFmPendingApproval,
   type FmOperation,
   type FmOutcome,
+  type FmPermissionReason,
   type FmPendingApproval,
   type FmPermissionCallback,
   type FmPermissionConfirmation,

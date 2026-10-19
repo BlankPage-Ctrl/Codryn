@@ -2,12 +2,13 @@ import { z } from 'zod';
 import type { AgentTool, AgentToolExecuteOptions } from '../../../src/agent/index.js';
 import { toListFilesRichBody, type OnRichResult } from './rich-result.js';
 import type { FmResult, ListDirData, ListDirService } from '../../../src/fm/index.js';
-import { isFmPendingApproval } from '../../../src/fm/index.js';
-import type { FmPermissionResolver } from '../../shared/fm-permission.js';
 import { DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, formatListDir, formatToolError } from './format.js';
 
 export const listFilesSchema = z.object({
-  path: z.string().default('.').describe('Relative path inside the workspace. Defaults to "."'),
+  path: z
+    .string()
+    .default('.')
+    .describe('Directory to list, relative to the workspace or absolute. Defaults to "."'),
   limit: z
     .number()
     .int()
@@ -33,10 +34,7 @@ function toListResult(
 
 export function createListFilesTool(
   listDir: Pick<ListDirService, 'listDir'>,
-  options?: {
-    onRichResult?: OnRichResult;
-    resolvePermission?: FmPermissionResolver<ListDirData>;
-  },
+  options?: { onRichResult?: OnRichResult },
 ): AgentTool[] {
   const listFiles: AgentTool<typeof listFilesSchema> = {
     name: 'list_files',
@@ -44,22 +42,6 @@ export function createListFilesTool(
     inputSchema: listFilesSchema,
     execute: async ({ path, limit, includeIgnored }, toolOptions?: AgentToolExecuteOptions) => {
       const result = await listDir.listDir(path, { includeIgnored });
-      if (isFmPendingApproval(result)) {
-        if (!options?.resolvePermission) {
-          return formatToolError(result.error.code, result.error.message);
-        }
-        const outcome = await options.resolvePermission(result, toolOptions?.toolCallId);
-        if (outcome.success && toolOptions?.toolCallId && options?.onRichResult) {
-          options.onRichResult({
-            toolCallId: toolOptions.toolCallId,
-            implement: 'list_files',
-            body: toListFilesRichBody(toolOptions.toolCallId, outcome.data, {
-              limit,
-            }),
-          });
-        }
-        return toListResult(outcome, { limit, includeIgnored });
-      }
       if (result.success && toolOptions?.toolCallId && options?.onRichResult) {
         options.onRichResult({
           toolCallId: toolOptions.toolCallId,
