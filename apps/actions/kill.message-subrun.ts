@@ -1,6 +1,7 @@
 import type { Container } from '../bootstrap.js';
 import { NotFoundError } from '../shared/errors.js';
 import { toSubRunKey } from '../../src/runs/index.js';
+import { cancelSubAgentHitl } from '../agent/subagents/hitl-scope.js';
 
 export interface KillMessageSubrunParams {
   workspaceId: string;
@@ -38,6 +39,17 @@ export async function killMessageSubrun(
     ctx.shellService.killRunsForRun(subKey);
   } catch (err) {
     ctx.logger.warn({ err, subKey }, 'kill sub-run: shell kill failed');
+  }
+  try {
+    const cleanup = await cancelSubAgentHitl(
+      ctx.hitlService,
+      (owner) => owner.toolCallId === params.toolCallId && owner.parentRunId === params.runId,
+    );
+    if (cleanup.failures) {
+      ctx.logger.warn({ failures: cleanup.failures, subKey }, 'kill sub-run: HITL cancel failed');
+    }
+  } catch (err) {
+    ctx.logger.warn({ err, subKey }, 'kill sub-run: HITL cancel failed');
   }
   return { subKey, killed };
 }

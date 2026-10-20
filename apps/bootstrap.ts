@@ -18,7 +18,8 @@ import { ColdAttachmentsStorage, FileAttachmentBytesStorage } from '../src/attac
 import { resolveAttachmentsDir } from './shared/attachments-dir.js';
 import { NodeFileSystem } from '../src/fm/index.js';
 import { HitlRepository } from '../src/human-in-the-loop/index.js';
-import { HitlService } from '../src/human-in-the-loop/index.js';
+import { HitlService, type IHitlService } from '../src/human-in-the-loop/index.js';
+import { scopeAwareHitlService } from './agent/subagents/hitl-scope.js';
 import {
   ShellExecutor,
   ShellRepository,
@@ -87,7 +88,7 @@ export interface Container {
   shellService: ShellService;
   shellEnabled: boolean;
   shellExecBus: ShellExecEventBus;
-  hitlService: HitlService;
+  hitlService: IHitlService;
   runService: RunsService;
   mcpManager: McpManager;
   pluginsEnabled: boolean;
@@ -157,7 +158,7 @@ export async function bootstrap(
   const fileSensitivePatterns = config.files?.sensitivePatterns ?? [...SENSITIVE_FILE_PATTERNS];
   const fileHistoryStorage = new ColdFileHistoryStorage(db);
   const hitlRepo = new HitlRepository(coldHitlStorage);
-  const hitlService = new HitlService(hitlRepo);
+  const hitlService: IHitlService = scopeAwareHitlService(new HitlService(hitlRepo));
   const runService = new RunsService(new RunsRepository(new RunHotStorage()));
 
   // # Default Client (in-memory) - empty secret disables the default key.

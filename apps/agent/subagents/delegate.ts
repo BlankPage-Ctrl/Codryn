@@ -10,6 +10,7 @@ import {
 } from '../../../src/agent/index.js';
 import type { ISubAgentLive } from '../../../src/runs/index.js';
 import { toSubRunKey } from '../../../src/runs/index.js';
+import { DEFAULT_TIMEOUT_MS, type IHitlService } from '../../../src/human-in-the-loop/index.js';
 import type { OnRichResult } from '../tools/rich-result.js';
 import { formatSubAgentError } from '../tools/format.js';
 import { isAbortError, mapAiError } from '../../shared/ai-errors/index.js';
@@ -17,6 +18,7 @@ import type { Logger } from '../../shared/types.js';
 import { createFeedBridge, type FeedBridge } from '../../shared/chat-feed/bridge.js';
 import { createSubFeedRecorder, type SubFeedRecorder } from '../../shared/run-steps.js';
 import { filterChildTools } from './filter.js';
+import { cancelSubAgentHitl, withSubAgentHitlScope } from './hitl-scope.js';
 import {
   DELEGATE_TOOL_NAME,
   DESCRIBE_SUBAGENT_TOOL_NAME,
@@ -88,6 +90,7 @@ export interface DelegateToolDeps {
   logger?: Logger;
   signal?: AbortSignal;
   subLive?: ISubAgentLive;
+  hitl?: Pick<IHitlService, 'listPending' | 'cancel'>;
   parentRun?: ChildRunScope;
   childToolset?: (args: ChildToolsetArgs) => AgentTool[];
 }
@@ -109,6 +112,15 @@ function childSignal(parent: AbortSignal | undefined, timeoutMs: number): AbortS
   if (!parent) return AbortSignal.timeout(timeoutMs);
   if (parent.aborted) return parent;
   return AbortSignal.any([parent, AbortSignal.timeout(timeoutMs)]);
+}
+
+// A child that asks the human must outlive the default HITL window, otherwise
+// its question expires while the child is already aborted.
+const HITL_TIMEOUT_MARGIN_MS = 15_000;
+
+function resolveChildTimeoutMs(def: SubAgentDef, canAskHuman: boolean): number {
+  if (!canAskHuman) return def.timeoutMs;
+  return Math.max(def.timeoutMs, DEFAULT_TIMEOUT_MS + HITL_TIMEOUT_MARGIN_MS);
 }
 
 /** `delegate_task` plus `describe_subagent`. Returns [] when no sub-agents are registered. */
@@ -137,7 +149,7 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
         );
       }
       const toolCallId = toolOptions?.toolCallId ?? null;
-      const parentSignal = toolOptions?.signal ?? deps.signal;
+      const parentSignal = toolOptions?.abortSignal ?? deps.signal;
 
       // parent run id (`sub:<parentRunId>:<toolCallId>`).
       const scope: ChildToolScope | null =
@@ -201,7 +213,10 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
               bridge,
               logger: deps.logger,
               ...(scope
-                ? { scopeToolCallId: (_toolName: string, id: string) => `${scope.parentRunId}:${id}` }
+                ? {
+                    scopeToolCallId: (_toolName: string, id: string) =>
+                      `${scope.parentRunId}:${id}`,
+                  }
                 : {}),
             })
           : null;
@@ -210,6 +225,20 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
         deps.childToolset && scope
           ? deps.childToolset({ baseTools: deps.baseTools, def, scope, onRichResult: childRich })
           : filterChildTools(deps.baseTools, def);
+
+      const scopedTools = scope
+        ? childTools.map((tool) => withSubAgentHitlScope(tool, scope))
+        : childTools;
+
+      const canAskHuman = scopedTools.some((tool) => tool.name === 'request_human');
+      const timeoutMs = resolveChildTimeoutMs(def, canAskHuman);
+      const system = canAskHuman
+        ? [
+            def.systemPrompt,
+            '',
+            'You can ask the user a question with the request_human tool. The answer comes back to you, so use it only when the task cannot move forward without it.',
+          ].join('\n')
+        : def.systemPrompt;
 
       let model = deps.parentModel;
       let fallback: string | null = null;
@@ -229,34 +258,51 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
       try {
         const result = await deps.agent.loop({
           model,
-          system: def.systemPrompt,
+          system,
           messages: [{ role: 'user', content: task }],
-          tools: buildToolset(childTools),
+          tools: buildToolset(scopedTools),
           stopWhen: stepCountIs(def.maxSteps),
-          ...(recorder
-            ? { onChunk: recorder.onChunk, onStepFinish: recorder.onStepFinish }
-            : {}),
+          ...(recorder ? { onChunk: recorder.onChunk, onStepFinish: recorder.onStepFinish } : {}),
           ...(deps.thinkingLevel ? { thinkingLevel: deps.thinkingLevel } : {}),
           ...(deps.maxOutputTokens != null ? { maxOutputTokens: deps.maxOutputTokens } : {}),
           maxRetries: 2,
-          abortSignal: childSignal(parentSignal, def.timeoutMs),
+          abortSignal: childSignal(parentSignal, timeoutMs),
         });
         const capped = truncate(await result.text);
         text = capped.text;
         truncated = capped.truncated;
       } catch (err) {
+        // A dead child must not leave a question waiting for the human.
+        if (scope && deps.hitl) {
+          const cleanup = await cancelSubAgentHitl(
+            deps.hitl,
+            (owner) => owner.toolCallId === scope.toolCallId,
+          );
+          if (cleanup.cancelled) {
+            deps.logger?.info(
+              { agentName: def.name, cancelled: cleanup.cancelled },
+              'subagent pending hitl cancelled',
+            );
+          }
+          if (cleanup.failures) {
+            deps.logger?.warn(
+              { agentName: def.name, failures: cleanup.failures },
+              'subagent pending hitl cleanup failed',
+            );
+          }
+        }
         // Parent cancellation and child timeout both surface as aborts:
         // the parent signal decides which one the model sees.
         const parentCancelled = parentSignal?.aborted === true;
         if (isChildAbort(err) || parentCancelled) {
           deps.logger?.warn(
-            { agentName: def.name, timeoutMs: def.timeoutMs, parentCancelled },
+            { agentName: def.name, timeoutMs, parentCancelled },
             parentCancelled ? 'subagent aborted by run cancel' : 'subagent timed out',
           );
           const code = parentCancelled ? 'CHILD_ABORTED' : 'CHILD_TIMEOUT';
           const message = parentCancelled
             ? `Sub-agent "${def.name}" stopped because the run was cancelled.`
-            : `Sub-agent "${def.name}" timed out after ${def.timeoutMs}ms.`;
+            : `Sub-agent "${def.name}" timed out after ${timeoutMs}ms.`;
           if (scope) {
             deps.subLive?.publishSubError(scope.subKey, {
               status: parentCancelled ? 'cancelled' : 'failed',
@@ -309,9 +355,7 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
 
   const describeTool: AgentTool<typeof describeSubagentSchema> = {
     name: DESCRIBE_SUBAGENT_TOOL_NAME,
-    description: [
-      'Describe what a sub-agent does.',
-    ].join(' '),
+    description: ['Describe what a sub-agent does.'].join(' '),
     inputSchema: describeSubagentSchema,
     execute: async ({ agent_name }: z.infer<typeof describeSubagentSchema>) => {
       if (!agent_name) {

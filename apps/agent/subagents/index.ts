@@ -18,6 +18,18 @@ export {
 } from './registry.js';
 export { filterChildTools } from './filter.js';
 export {
+  cancelSubAgentHitl,
+  currentHitlScope,
+  runWithHitlScope,
+  scopeAwareHitlService,
+  subAgentScopeFromMetadata,
+  subAgentScopeMetadata,
+  withSubAgentHitlScope,
+  SUB_AGENT_METADATA_KEYS,
+  type CancelSubAgentHitlResult,
+  type HitlSubAgentScope,
+} from './hitl-scope.js';
+export {
   matchModelHint,
   type HintMatch,
   type HintModelRecord,

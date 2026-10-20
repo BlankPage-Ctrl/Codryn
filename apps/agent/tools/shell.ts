@@ -20,9 +20,9 @@ export const runShellSchema = z.object({
     .number()
     .int()
     .positive()
-    .max(300_000)
+    .max(600_000)
     .optional()
-    .describe('Execution timeout in milliseconds'),
+    .describe('Execution timeout in milliseconds.'),
 });
 
 function toRunResult(outcome: ShellOutcome) {
@@ -110,7 +110,7 @@ export function createShellTool(
       // Minted upfront so an abort racing the execution can kill the live
       // process with the same id the service tracks.
       const executionId = randomUUID();
-      const signals = [opts.signal, toolOptions?.signal].filter(
+      const signals = [opts.signal, toolOptions?.abortSignal].filter(
         (s): s is AbortSignal => s instanceof AbortSignal,
       );
       let onAbort: (() => void) | undefined;

@@ -12,6 +12,7 @@ export interface RunEndHandlerDeps {
   runId: string;
   markFinalized: () => void;
   getStats: () => { stepCount: number; lastFinishReason: string | undefined };
+  isTimedOut?: () => boolean;
 }
 
 /**
@@ -34,6 +35,13 @@ export function createRunEndHandler(deps: RunEndHandlerDeps) {
     if (isAborted) {
       await deps.persister.finalize(messages);
       deps.markFinalized();
+      if (deps.isTimedOut?.()) {
+        await deps.runs.finish(deps.runId, 'failed', {
+          code: 'RUN_TIMEOUT',
+          message: 'The run exceeded its time budget.',
+        });
+        return;
+      }
       await deps.runs.finish(deps.runId, 'cancelled', {
         code: 'RUN_ABORTED',
         message: 'Run aborted',
@@ -110,6 +118,8 @@ export interface BackgroundFailureDeps {
   logger: Logger;
   chatId: string;
   runId: string;
+  /** True when the run hit its time budget instead of a user cancellation. */
+  isTimedOut?: () => boolean;
 }
 
 /**
@@ -146,6 +156,13 @@ export async function handleBackgroundRunFailure(
     });
   } else {
     await deps.persister.interrupt();
+    if (deps.isTimedOut?.()) {
+      await deps.runs.finish(deps.runId, 'failed', {
+        code: 'RUN_TIMEOUT',
+        message: 'The run exceeded its time budget.',
+      });
+      return;
+    }
     await deps.runs.finish(deps.runId, 'cancelled', {
       code: 'RUN_ABORTED',
       message: 'Run cancelled',

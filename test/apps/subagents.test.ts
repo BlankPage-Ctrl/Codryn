@@ -85,7 +85,7 @@ test('filterChildTools keeps read-only tools in ask mode and drops privileged on
   assert.ok(names.includes('grep'));
   assert.ok(!names.includes('edit_file'));
   assert.ok(!names.includes('run_shell'));
-  assert.ok(!names.includes('request_human'));
+  assert.ok(names.includes('request_human'));
   assert.ok(!names.includes('delegate_task'));
   assert.ok(!names.includes('write_plan'));
 });
@@ -93,7 +93,7 @@ test('filterChildTools keeps read-only tools in ask mode and drops privileged on
 test('filterChildTools honors explicit tools and disallowedTools', () => {
   const def = { ...BUILTIN_SUBAGENTS[0]!, mode: 'edit' as const, tools: ['grep', 'edit_file'] };
   const names = filterChildTools(BASE_TOOLS, def).map((t) => t.name);
-  assert.deepEqual(names.sort(), ['edit_file', 'grep']);
+  assert.deepEqual(names.sort(), ['edit_file', 'grep', 'request_human']);
   const denied = {
     ...BUILTIN_SUBAGENTS[0]!,
     mode: 'edit' as const,
@@ -102,7 +102,18 @@ test('filterChildTools honors explicit tools and disallowedTools', () => {
   const names2 = filterChildTools(BASE_TOOLS, denied).map((t) => t.name);
   assert.ok(!names2.includes('run_shell'));
   assert.ok(names2.includes('edit_file'));
-  assert.ok(!names2.includes('request_human'));
+  assert.ok(names2.includes('request_human'));
+});
+
+test('filterChildTools lets a sub-agent opt out of asking the human', () => {
+  const denied = {
+    ...BUILTIN_SUBAGENTS[0]!,
+    mode: 'edit' as const,
+    disallowedTools: ['request_human'],
+  };
+  const names = filterChildTools(BASE_TOOLS, denied).map((t) => t.name);
+  assert.ok(!names.includes('request_human'));
+  assert.ok(names.includes('edit_file'));
 });
 
 test('filterChildTools grants MCP and plugin tools via explicit allowlist', () => {
@@ -110,10 +121,10 @@ test('filterChildTools grants MCP and plugin tools via explicit allowlist', () =
   assert.ok(!askDefault.includes('mcp__github__search_code'));
   const def = { ...BUILTIN_SUBAGENTS[0]!, tools: ['mcp__github__search_code', 'my_plugin_tool'] };
   const names = filterChildTools(BASE_TOOLS, def).map((t) => t.name);
-  assert.deepEqual(names.sort(), ['mcp__github__search_code', 'my_plugin_tool']);
+  assert.deepEqual(names.sort(), ['mcp__github__search_code', 'my_plugin_tool', 'request_human']);
   const wild = { ...BUILTIN_SUBAGENTS[0]!, tools: ['mcp__*'] };
   const wildNames = filterChildTools(BASE_TOOLS, wild).map((t) => t.name);
-  assert.deepEqual(wildNames, ['mcp__github__search_code']);
+  assert.deepEqual(wildNames.sort(), ['mcp__github__search_code', 'request_human']);
   const denied = {
     ...BUILTIN_SUBAGENTS[0]!,
     mode: 'edit' as const,
@@ -288,11 +299,11 @@ test('delegate treats TimeoutError as child timeout', async () => {
   assert.ok(out.includes('`CHILD_TIMEOUT`'));
 });
 
-test('delegate prefers the tool call signal over the stored signal', async () => {
+test('delegate prefers the tool call abort signal over the stored signal', async () => {
   const tool = delegateWith(rejectingAgent(new Error('aborted')));
   const out = (await tool.execute(
     { agent_name: 'explorer', title: 'Find auth code', task: 'find auth code' },
-    { signal: AbortSignal.abort() },
+    { abortSignal: AbortSignal.abort() },
   )) as string;
   assert.ok(out.includes('`CHILD_ABORTED`'));
 });
@@ -313,7 +324,8 @@ function fakeSubLive(): {
       subs.push(meta);
       return `sub:${meta.parentRunId}:${meta.toolCallId}`;
     },
-    getSubMeta: (subKey) => subs.find((s) => `sub:${s.parentRunId}:${s.toolCallId}` === subKey) ?? null,
+    getSubMeta: (subKey) =>
+      subs.find((s) => `sub:${s.parentRunId}:${s.toolCallId}` === subKey) ?? null,
     getSubStatus: () => 'running',
     isSubOpen: () => true,
     publishSubChunk: (_subKey, line) => {
@@ -337,9 +349,7 @@ function fakeSubLive(): {
 test('delegate streams a child run through subLive and scopes shell feed ids', async () => {
   const def = BUILTIN_SUBAGENTS[0]!;
   const agent = {
-    loop: (async (opts: {
-      onChunk?: (event: { chunk: Record<string, unknown> }) => void;
-    }) => {
+    loop: (async (opts: { onChunk?: (event: { chunk: Record<string, unknown> }) => void }) => {
       opts.onChunk?.({
         chunk: { type: 'tool-call', toolCallId: 'call_shell', toolName: 'run_shell', input: {} },
       });

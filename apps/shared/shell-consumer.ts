@@ -149,7 +149,7 @@ export function defaultGlobalShellConfig(
   return {
     enabled: true,
     shell: defaultShellForPlatform(plat),
-    defaultTimeoutMs: 30_000,
+    defaultTimeoutMs: 120_000,
     maxOutputChars: 25_000,
     defaultMode: 'ask',
     readonly: [...READONLY_COMMANDS],

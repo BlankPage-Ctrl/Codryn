@@ -8,6 +8,7 @@ import {
   errorName,
   huntMessage,
   isAbortError,
+  isTimeoutError,
   parseJsonBody,
   truncate,
 } from './values.js';
@@ -16,6 +17,10 @@ import { mapSemanticHaystack } from './patterns.js';
 import { mapApiCallError } from './api-call.js';
 
 export function mapAiError(err: unknown, options: MapAiErrorOptions = {}): MappedAiError {
+  if (isTimeoutError(err)) {
+    return fail('RUN_TIMEOUT', 'The run exceeded its time budget.', 504);
+  }
+
   if (isAbortError(err)) {
     return fail('RUN_ABORTED', 'The run was cancelled.', 499);
   }

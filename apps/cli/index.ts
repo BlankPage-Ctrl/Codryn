@@ -28,7 +28,7 @@ const configShape = {
   shell: {
     enabled: t.boolean().default(true),
     shell: t.string().default(defaultShellForPlatform()),
-    defaultTimeoutMs: t.number().default(30_000),
+    defaultTimeoutMs: t.number().default(120_000),
     maxOutputChars: t.number().default(25_000),
     defaultMode: t.enum(['allow', 'ask', 'deny']).default('ask'),
     readonly: t.array(t.string()).default([...READONLY_COMMANDS]),

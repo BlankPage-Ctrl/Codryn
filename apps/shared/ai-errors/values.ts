@@ -27,6 +27,11 @@ export function isAbortError(value: unknown): boolean {
   return errorName(value) === 'AbortError';
 }
 
+export function isTimeoutError(value: unknown): boolean {
+  if (value instanceof Error) return value.name === 'TimeoutError';
+  return errorName(value) === 'TimeoutError';
+}
+
 /** Best-effort hunt for a human message in an unknown error shape. */
 export function huntMessage(value: unknown, depth = 0): string | null {
   if (depth > 3 || value == null) return null;

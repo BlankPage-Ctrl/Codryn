@@ -1,6 +1,7 @@
 import type { Container } from '../bootstrap.js';
 import { NotFoundError } from '../shared/errors.js';
 import type { RunRecord } from '../../src/runs/index.js';
+import { subAgentScopeFromMetadata } from '../agent/subagents/hitl-scope.js';
 
 export async function cancelMessageRun(
   ctx: Container,
@@ -28,7 +29,7 @@ export async function cancelMessageRun(
     ctx.logger.warn({ err, runId: params.runId }, 'cancel run: shell pending abort failed');
   }
   try {
-    await cancelShellApprovalRequests(ctx, params.chatId);
+    await cancelRunHitlRequests(ctx, params.chatId, params.runId);
   } catch (err) {
     ctx.logger.warn({ err, runId: params.runId }, 'cancel run: HITL approval cancel failed');
   }
@@ -39,11 +40,14 @@ export async function cancelMessageRun(
   return finished ?? run;
 }
 
-async function cancelShellApprovalRequests(ctx: Container, chatId: string): Promise<void> {
+async function cancelRunHitlRequests(ctx: Container, chatId: string, runId: string): Promise<void> {
   const pending = await ctx.hitlService.listPending();
   for (const request of pending) {
     if (request.chatId !== chatId) continue;
-    if (request.metadata?.source !== 'shell') continue;
+    const isShellApproval = request.metadata?.source === 'shell';
+    const owner = subAgentScopeFromMetadata(request.metadata);
+    const isSubAgentRequest = owner?.parentRunId === runId;
+    if (!isShellApproval && !isSubAgentRequest) continue;
     try {
       await ctx.hitlService.cancel(request.id);
     } catch {

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export interface AgentToolExecuteOptions {
   toolCallId?: string;
-  signal?: AbortSignal;
+  abortSignal?: AbortSignal;
 }
 
 export interface AgentTool<TSchema extends z.ZodTypeAny = z.ZodTypeAny> {

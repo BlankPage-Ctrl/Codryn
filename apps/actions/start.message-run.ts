@@ -19,7 +19,7 @@ import {
   loadSubAgentsForWorkspace,
   matchModelHint,
 } from '../agent/subagents/index.js';
-import { createShellTool } from '../agent/tools/index.js';
+import { createHitlTool, createShellTool } from '../agent/tools/index.js';
 import { resolveShellPermissionViaHitl } from '../shared/shell-permission.js';
 import { toProviderConfig } from '../providers/translate.js';
 import { createFeedBridge } from '../shared/chat-feed/bridge.js';
@@ -64,6 +64,9 @@ import { MessagesDomainError } from '../../src/messages/errors/base.js';
 import type { RunRecord } from '../../src/runs/index.js';
 
 const messageIdGen = createIdGenerator({ prefix: 'msg', size: 16 });
+
+/** Wall-clock budget for one run; longer runs are reported as timeouts. */
+const RUN_BUDGET_MS = 2 * 60 * 60 * 1_000;
 
 export interface StartMessageRunParams {
   workspaceId: string;
@@ -205,6 +208,10 @@ export async function startMessageRun(
     const markFinalized = (): void => {
       finalized = true;
     };
+    const cancelSignal = getAbortSignal();
+    const budgetSignal = AbortSignal.timeout(RUN_BUDGET_MS);
+    const loopSignal = cancelSignal ? AbortSignal.any([cancelSignal, budgetSignal]) : budgetSignal;
+    const isTimedOut = (): boolean => budgetSignal.aborted && cancelSignal?.aborted !== true;
     const bridge = createFeedBridge({
       publishChunk: (line) => ctx.runService.publishChunk(runId, line),
       logger: ctx.logger,
@@ -316,6 +323,7 @@ export async function startMessageRun(
               logger: ctx.logger,
               ...(liveSignal ? { signal: liveSignal } : {}),
               subLive: ctx.runService,
+              hitl: ctx.hitlService,
               parentRun: {
                 parentRunId: runId,
                 chatId: params.chatId,
@@ -325,26 +333,37 @@ export async function startMessageRun(
               childToolset: ({ baseTools: tools, def, scope, onRichResult }) => {
                 const filtered = filterChildTools(tools, def);
                 return filtered.map((tool) => {
-                  if (tool.name !== 'run_shell') return tool;
-                  const [scoped] = createShellTool(shellConsumer, {
-                    chatId: params.chatId,
-                    runId: scope.subKey,
-                    callScope: scope.parentRunId,
-                    resolvePermission: (pending) =>
-                      resolveShellPermissionViaHitl(ctx.hitlService, pending, {
-                        workspaceRoot: workspace.projectPath,
-                        logger: ctx.logger,
-                        ...(liveSignal ? { signal: liveSignal } : {}),
-                      }),
-                    onRichResult,
-                  });
-                  return scoped ?? tool;
+                  if (tool.name === 'run_shell') {
+                    const [scoped] = createShellTool(shellConsumer, {
+                      chatId: params.chatId,
+                      runId: scope.subKey,
+                      callScope: scope.parentRunId,
+                      resolvePermission: (pending) =>
+                        resolveShellPermissionViaHitl(ctx.hitlService, pending, {
+                          workspaceRoot: workspace.projectPath,
+                          logger: ctx.logger,
+                          ...(liveSignal ? { signal: liveSignal } : {}),
+                        }),
+                      onRichResult,
+                    });
+                    return scoped ?? tool;
+                  }
+                  if (tool.name === 'request_human') {
+                    // Rebuilt so the answer lands in the child feed instead of
+                    // the parent assistant message.
+                    const [scoped] = createHitlTool(
+                      ctx.hitlService,
+                      { chatId: params.chatId, workspaceId: params.workspaceId },
+                      { onRichResult },
+                    );
+                    return scoped ?? tool;
+                  }
+                  return tool;
                 });
               },
             });
             return [...baseTools, ...delegateTools];
           };
-          const loopSignal = getAbortSignal();
           return ctx.agent.loop({
             model: resolved.data,
             ...(maxOutputTokens != null ? { maxOutputTokens } : {}),
@@ -361,13 +380,12 @@ export async function startMessageRun(
             tools: buildToolset(await buildRunTools()),
             thinkingLevel,
             maxRetries: 3,
+            // Tools enforce their own limits; a chunk timeout would cancel the
+            // run because the AI SDK counts that gap while a tool is running.
             timeout: {
-              stepMs: 600_000,
-              chunkMs: 120_000,
-              toolMs: 360_000,
-              tools: { request_humanMs: 300_000 },
+              stepMs: 1_800_000,
             },
-            ...(loopSignal ? { abortSignal: loopSignal } : {}),
+            abortSignal: loopSignal,
             onError: ({ error }) => {
               const isTimeout = (error as { name?: string })?.name === 'TimeoutError';
               const mapped = mapAiError(error, { chatId: params.chatId });
@@ -404,7 +422,10 @@ export async function startMessageRun(
             },
             onAbort: async () => {
               const { stepCount, lastFinishReason } = recorder.getStats();
-              ctx.logger.warn({ runId, stepCount, lastFinishReason }, 'agent aborted');
+              ctx.logger.warn(
+                { runId, stepCount, lastFinishReason, timedOut: isTimedOut() },
+                'agent aborted',
+              );
               void persister.interrupt();
             },
           });
@@ -420,6 +441,7 @@ export async function startMessageRun(
             runId,
             markFinalized,
             getStats: () => recorder.getStats(),
+            isTimedOut,
           }),
           onError: createRunStreamErrorHandler({
             persister,
@@ -450,6 +472,7 @@ export async function startMessageRun(
           logger: ctx.logger,
           chatId: params.chatId,
           runId,
+          isTimedOut,
         },
         err,
         { aborted, finalized },

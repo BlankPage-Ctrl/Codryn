@@ -47,7 +47,7 @@ function stubFetch(routes: { manifest?: StubRoute; tags?: StubRoute; asset?: Stu
   calls: { url: string; init: unknown }[];
 } {
   const calls: { url: string; init: unknown }[] = [];
-  const fetch = (async (url: unknown, init: unknown) => {
+  const stub = (async (url: unknown, init: unknown) => {
     const u = String(url);
     calls.push({ url: u, init });
     const route = u.includes('manifest.json')
@@ -64,7 +64,7 @@ function stubFetch(routes: { manifest?: StubRoute; tags?: StubRoute; asset?: Stu
       arrayBuffer: () => Promise.resolve(route.bytes ?? new Uint8Array()),
     };
   }) as unknown as typeof fetch;
-  return { fetch, calls };
+  return { fetch: stub, calls };
 }
 
 const fakeBytes = new TextEncoder().encode('fake-srcinsight-binary');
