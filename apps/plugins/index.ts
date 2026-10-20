@@ -44,6 +44,7 @@ export {
   type PluginToolDecl,
 } from './native.js';
 export { dedupeToolDecls, scanToolDeclarations } from './safety.js';
+export { resolvePluginContract, type PluginContract, type PluginToolContract } from './contract.js';
 export { buildPluginBootstrap, loadPluginStates, type PluginLoadResult } from './guard.js';
 export { PluginHost, type PluginHostOptions, type PluginHostEntry } from './host.js';
 export { createPluginTool, createPluginTools, type PluginToolBridgeDeps } from './tool-bridge.js';
@@ -71,7 +72,6 @@ export {
 } from './runtime/protocol.js';
 export type {
   PluginInternalManifest,
-  PluginInternalTool,
   PluginHookPayload,
   PluginToolResult,
   PluginProcessHandle,

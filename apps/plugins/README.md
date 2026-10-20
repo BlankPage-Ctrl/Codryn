@@ -24,7 +24,7 @@ Process CWD, in order:
 | relative (`sub/dir`)      | resolved against the plugin directory          |
 | absolute                  | used as-is                                     |
 
-Relative `args` (e.g. `./plugin.js`) resolve against that CWD. `command` is
+Relative `args` (e.g. `./plugin.mjs`) resolve against that CWD. `command` is
 looked up on the backend process `PATH`. Env is backend env plus
 `runtime.env`. The `initialize` params also carry the resolved `cwd`.
 
@@ -36,14 +36,36 @@ stderr is log-only.
 | Direction     | Method                                     | Payload                                                      |
 | ------------- | ------------------------------------------ | ------------------------------------------------------------ |
 | backend sends | `initialize`                               | `{ pluginId, workspaceId, cwd }`, reply `{ manifest }`       |
-| backend sends | `tools/list`                               | reply `{ tools }`                                            |
+| backend sends | `tools/list`                               | reply `{ tools }` (names)                                    |
 | backend sends | `tools/call`                               | `{ name, arguments }` (bare tool name), reply `{ ok, text }` |
 | backend sends | `ping` / `shutdown`                        | liveness and graceful exit                                   |
-| plugin sends  | `hooks/beforeTool`, `hooks/afterTool`, ... | notifications, only if declared in manifest `hooks`          |
+| plugin sends  | `hooks/beforeTool`, `hooks/afterTool`, ... | notifications, only for hooks declared in the manifest       |
 
-The runtime `manifest` (from `initialize`) declares the live tools; it may
-differ from the static `codryn-plugin.json`. Declare `tools` in both so
-`discover` output matches what gets spawned.
+The runtime `manifest` (from `initialize`) reports the implemented tool names
+and the observed hook names. It never carries the contract: the manifest on
+disk owns that.
+
+## Writing a plugin
+
+Copy `codryn-plugin-sdk.mjs` next to the plugin script and hand it the
+implementations:
+
+```js
+import { definePlugin } from './codryn-plugin-sdk.mjs';
+
+definePlugin({
+  tools: {
+    scan_vulnerability: async ({ path = '.' }) => `Scanned ${path}.`,
+  },
+  hooks: {
+    beforeTool: (payload) => console.error(payload.tool),
+  },
+});
+```
+
+The helper reads `codryn-plugin.json`, reports the implemented tools, and
+routes tool calls. Without it, the plugin script speaks the protocol
+directly and still reports names only.
 
 ## Tools
 
@@ -51,7 +73,8 @@ Agent-visible name is always `<pluginId>__<toolName>` (e.g.
 `vuln-scanner__fetch_security_advisory`). Keep `inputSchema` to plain JSON
 Schema (`object`/`properties`/`required`/`enum`/scalars); exotic keywords are
 ignored. Mark side effects honestly: `sensitive` and `destructive` trigger a
-user approval prompt per call.
+user approval prompt per call. Both flags are read from the manifest, so what
+the user sees when installing is what the approval prompt enforces.
 
 ## Enable scopes
 

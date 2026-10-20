@@ -11,6 +11,8 @@ import {
 } from './config.js';
 import { PluginHost } from './host.js';
 import { createPluginTools } from './tool-bridge.js';
+import { resolvePluginContract } from './contract.js';
+import type { PluginToolDecl } from './native.js';
 import type { PluginLogger, PluginSkill, PluginState } from './types.js';
 import type { AgentTool } from '../../src/agent/index.js';
 import type { IHitlService } from '../../src/human-in-the-loop/index.js';
@@ -42,6 +44,8 @@ export async function loadPluginStates(
   const states: PluginState[] = [];
   const skills: PluginSkill[] = [];
   const host = new PluginHost({ logger: logger as never });
+  const declaredTools = new Map<string, PluginToolDecl[]>();
+  const stateById = new Map<string, PluginState>();
 
   let entries: Array<{ entry: { id: string; enabled: boolean }; dir: string }>;
   try {
@@ -116,7 +120,7 @@ export async function loadPluginStates(
       const dirSkills = await loadPluginDirSkills(entry.id, dir, effectiveCaps.skills, logger);
       skills.push(...dirSkills);
     }
-    states.push({
+    const state: PluginState = {
       id: entry.id,
       path: dir,
       source: 'local',
@@ -124,9 +128,12 @@ export async function loadPluginStates(
       status: 'ready',
       error: null,
       caps: effectiveCaps,
-    });
+    };
+    states.push(state);
+    stateById.set(entry.id, state);
+    declaredTools.set(entry.id, effectiveCaps.tools);
 
-    if (effectiveCaps.format === 'codryn' && effectiveCaps.tools.length > 0) {
+    if (effectiveCaps.format === 'codryn') {
       const { manifest: codrynManifest } = await loadCodrynManifest(dir);
       if (codrynManifest?.runtime) {
         host.register(entry.id, codrynManifest, dir, workspaceId);
@@ -138,8 +145,17 @@ export async function loadPluginStates(
   for (const pluginId of host.getRegisteredIds()) {
     try {
       const handle = await host.ensurePlugin(pluginId);
-      if (hitl && handle.tools.length > 0) {
-        const pluginTools = createPluginTools(pluginId, handle.tools, {
+      const contract = resolvePluginContract(
+        declaredTools.get(pluginId) ?? [],
+        host.getPlugin(pluginId)?.manifest.hooks,
+        handle.internalManifest,
+      );
+      const state = stateById.get(pluginId);
+      if (state?.caps) {
+        state.caps = { ...state.caps, notices: [...state.caps.notices, ...contract.notices] };
+      }
+      if (hitl && contract.tools.length > 0) {
+        const pluginTools = createPluginTools(pluginId, contract.tools, {
           host,
           hitl,
           workspaceId,

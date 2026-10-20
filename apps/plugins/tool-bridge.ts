@@ -1,7 +1,7 @@
 import type { AgentTool, AgentToolExecuteOptions } from '../../src/agent/index.js';
 import type { IHitlService } from '../../src/human-in-the-loop/index.js';
 import type { PluginHost } from './host.js';
-import type { PluginInternalTool } from './runtime/types.js';
+import type { PluginToolContract } from './contract.js';
 import { resolvePluginPermissionViaHitl } from '../shared/plugin-permission.js';
 import { jsonSchemaToZod } from '../mcp/json-schema.js';
 import { z } from 'zod';
@@ -17,7 +17,7 @@ export interface PluginToolBridgeDeps {
 /** Tool name is namespaced as "pluginId__toolName". */
 export function createPluginTool(
   pluginId: string,
-  tool: PluginInternalTool,
+  tool: PluginToolContract,
   deps: PluginToolBridgeDeps,
 ): AgentTool {
   const namespacedName = `${pluginId}__${tool.name}`;
@@ -91,7 +91,7 @@ export function createPluginTool(
 
 export function createPluginTools(
   pluginId: string,
-  tools: PluginInternalTool[],
+  tools: PluginToolContract[],
   deps: PluginToolBridgeDeps,
 ): AgentTool[] {
   return tools.map((tool) => createPluginTool(pluginId, tool, deps));

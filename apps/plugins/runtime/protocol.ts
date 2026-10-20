@@ -1,6 +1,4 @@
-import type { PluginInternalManifest, PluginInternalTool, PluginHookPayload } from './types.js';
-
-export type { PluginInternalTool } from './types.js';
+import type { PluginInternalManifest, PluginHookPayload } from './types.js';
 
 export const PluginMethods = {
   /** Handshake; the plugin replies with its internal manifest. */
@@ -63,7 +61,8 @@ export interface PluginToolsListParams {
 }
 
 export interface PluginToolsListResult {
-  tools: PluginInternalTool[];
+  /** Names of the tools the plugin implements. */
+  tools: string[];
 }
 
 export interface PluginToolsCallParams {

@@ -24,12 +24,33 @@ import type {
   PluginProcessHandle,
   PluginProcessState,
   PluginInternalManifest,
-  PluginInternalTool,
   PluginHookPayload,
 } from './types.js';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_SPAWN_TIMEOUT_MS = 10_000;
+
+/** Accepts `["a"]` and the legacy `[{ name: "a" }]` shape. */
+function normalizeToolNames(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const names: string[] = [];
+  for (const item of raw) {
+    if (typeof item === 'string') {
+      names.push(item);
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const name = (item as { name?: unknown }).name;
+      if (typeof name === 'string') names.push(name);
+    }
+  }
+  return names;
+}
+
+function normalizeHookNames(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((name): name is string => typeof name === 'string');
+}
 
 export interface PluginRuntimeConfig {
   command: string;
@@ -61,7 +82,7 @@ export class PluginProcess extends EventEmitter {
   private nextId = 1;
   private state: PluginProcessState = 'spawning';
   private internalManifest: PluginInternalManifest | null = null;
-  private tools: PluginInternalTool[] = [];
+  private tools: string[] = [];
   private hooks: string[] = [];
   private error: string | null = null;
   private spawnedAt = Date.now();
@@ -171,9 +192,19 @@ export class PluginProcess extends EventEmitter {
         cwd: this.cwd,
       } satisfies PluginInitializeParams)) as PluginInitializeResult;
 
-      this.internalManifest = result.manifest;
-      this.tools = result.manifest.tools;
-      this.hooks = result.manifest.hooks;
+      const reported = result?.manifest;
+      this.internalManifest = {
+        name: reported?.name ?? this.id,
+        version: reported?.version ?? '0.0.0',
+        description: reported?.description ?? '',
+        tools: normalizeToolNames(reported?.tools),
+        hooks: normalizeHookNames(reported?.hooks),
+        requiresCodrynTools: Array.isArray(reported?.requiresCodrynTools)
+          ? reported.requiresCodrynTools
+          : [],
+      };
+      this.tools = this.internalManifest.tools;
+      this.hooks = this.internalManifest.hooks;
       this.state = 'ready';
       this.lastActivityAt = Date.now();
 
@@ -234,9 +265,9 @@ export class PluginProcess extends EventEmitter {
     return result;
   }
 
-  async listTools(): Promise<PluginInternalTool[]> {
+  async listTools(): Promise<string[]> {
     const result = (await this.request(PluginMethods.TOOLS_LIST, {})) as PluginToolsListResult;
-    return result.tools;
+    return normalizeToolNames(result.tools);
   }
 
   async ping(): Promise<boolean> {

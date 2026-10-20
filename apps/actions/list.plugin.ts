@@ -37,12 +37,14 @@ export async function listPlugins(
 ): Promise<ListPluginsResult> {
   const projectPath = await resolvePluginProjectPath(ctx, params.workspaceId);
   if (!ctx.pluginsEnabled) return { workspaceId: params.workspaceId, plugins: [] };
-  const { states } = await loadPluginStates(
+  const { states, host } = await loadPluginStates(
     projectPath,
     params.workspaceId,
     ctx.settingsService,
     ctx.logger,
     ctx.pluginLimits,
   );
+  // Listing needs the plugin report, not a running process.
+  await host.closeAll();
   return { workspaceId: params.workspaceId, plugins: states };
 }

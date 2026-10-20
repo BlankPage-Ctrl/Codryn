@@ -4,11 +4,7 @@ import {
   type PluginProcessOptions,
   type PluginRuntimeConfig,
 } from './runtime/process.js';
-import type {
-  PluginProcessHandle,
-  PluginInternalTool,
-  PluginHookPayload,
-} from './runtime/types.js';
+import type { PluginProcessHandle, PluginHookPayload } from './runtime/types.js';
 import { HOOK_NAME_TO_METHOD, type PluginHookName } from './runtime/protocol.js';
 import type { CodrynPluginManifest } from './native.js';
 
@@ -139,8 +135,8 @@ export class PluginHost {
     return [...this.plugins.keys()];
   }
 
-  listTools(): PluginInternalTool[] {
-    const tools: PluginInternalTool[] = [];
+  listTools(): string[] {
+    const tools: string[] = [];
     for (const entry of this.plugins.values()) {
       if (entry.process?.isReady) {
         tools.push(...entry.process.handle.tools);
@@ -149,11 +145,11 @@ export class PluginHost {
     return tools;
   }
 
+  /** The manifest declares the tools; the plugin process only implements them. */
   findPluginForTool(toolName: string): PluginHostEntry | null {
     for (const entry of this.plugins.values()) {
-      if (!entry.process?.isReady) continue;
-      const tools = entry.process.handle.tools;
-      if (tools.some((t) => t.name === toolName)) {
+      const declared = entry.manifest.tools?.some((tool) => tool.name === toolName);
+      if (declared) {
         return entry;
       }
     }
@@ -185,8 +181,7 @@ export class PluginHost {
 
   /**
    * Observe-only notifications, no response expected.
-   * Gated twice: registry manifest must enable the hook, and the live
-   * process must have subscribed to it during initialize.
+   * The manifest decides which hooks a plugin receives.
    */
   dispatchHook(hookName: PluginHookName, payload: PluginHookPayload): void {
     const method = HOOK_NAME_TO_METHOD[hookName];
@@ -196,8 +191,6 @@ export class PluginHost {
       if (!manifestHookEnabled) continue;
 
       if (!entry.process?.isReady) continue;
-      const hookSubscribed = entry.process.handle.hooks.includes(hookName);
-      if (!hookSubscribed) continue;
 
       entry.process.notify(method, payload).catch((err) => {
         this.logger.warn({ err, plugin: entry.id, hook: hookName }, 'plugin hook dispatch failed');
@@ -210,8 +203,7 @@ export class PluginHost {
     if (!entry) return false;
     const manifestHookEnabled = entry.manifest.hooks?.[hookName] === true;
     if (!manifestHookEnabled) return false;
-    if (!entry.process?.isReady) return false;
-    return entry.process.handle.hooks.includes(hookName);
+    return entry.process?.isReady === true;
   }
 
   getHookSubscribers(hookName: PluginHookName): string[] {

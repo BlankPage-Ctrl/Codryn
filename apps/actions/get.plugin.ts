@@ -23,13 +23,14 @@ export async function getPlugin(
 ): Promise<GetPluginResult> {
   assertPluginsEnabled(ctx);
   const projectPath = await resolvePluginProjectPath(ctx, params.workspaceId);
-  const { states } = await loadPluginStates(
+  const { states, host } = await loadPluginStates(
     projectPath,
     params.workspaceId,
     ctx.settingsService,
     ctx.logger,
     ctx.pluginLimits,
   );
+  await host.closeAll();
   const plugin = states.find((s) => s.id === params.id);
   if (!plugin) throw new NotFoundError(`Plugin ${params.id} not found`);
   return { workspaceId: params.workspaceId, plugin };

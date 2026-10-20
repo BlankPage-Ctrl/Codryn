@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -8,7 +8,7 @@ import { PluginHost } from '../../apps/plugins/host.js';
 import { createPluginTool } from '../../apps/plugins/tool-bridge.js';
 import { loadCodrynManifest } from '../../apps/plugins/native.js';
 import type { CodrynPluginManifest } from '../../apps/plugins/native.js';
-import type { PluginInternalTool } from '../../apps/plugins/runtime/types.js';
+import type { PluginToolContract } from '../../apps/plugins/contract.js';
 
 function writeManifest(dir: string, manifest: unknown): void {
   mkdirSync(dir, { recursive: true });
@@ -75,7 +75,7 @@ const manifest = {
   name: 'Test Plugin',
   version: '1.0.0',
   description: 'Test plugin',
-  tools: Object.values(tools),
+  tools: Object.keys(tools),
   hooks: ['beforeTool'],
   requiresCodrynTools: []
 };
@@ -84,7 +84,7 @@ rl.on('line', (line) => {
   if (msg.method === 'initialize') {
     process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { manifest } }) + '\\n');
   } else if (msg.method === 'tools/list') {
-    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { tools: Object.values(tools) } }) + '\\n');
+    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { tools: Object.keys(tools) } }) + '\\n');
   } else if (msg.method === 'tools/call') {
     const tool = tools[msg.params.name];
     if (!tool) {
@@ -114,6 +114,7 @@ rl.on('line', (line) => {
     assert.equal(handle.state, 'ready');
     assert.equal(handle.internalManifest?.name, 'Test Plugin');
     assert.equal(handle.tools.length, 1);
+    assert.equal(handle.tools[0], 'echo');
     assert.equal(handle.hooks.length, 1);
 
     const pong = await proc.ping();
@@ -185,7 +186,7 @@ const manifest = {
   name: 'Math Plugin',
   version: '1.0.0',
   description: 'Math operations',
-  tools: Object.values(tools),
+  tools: Object.keys(tools),
   hooks: [],
   requiresCodrynTools: []
 };
@@ -194,7 +195,7 @@ rl.on('line', (line) => {
   if (msg.method === 'initialize') {
     process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { manifest } }) + '\\n');
   } else if (msg.method === 'tools/list') {
-    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { tools: Object.values(tools) } }) + '\\n');
+    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { tools: Object.keys(tools) } }) + '\\n');
   } else if (msg.method === 'tools/call') {
     const tool = tools[msg.params.name];
     if (!tool) {
@@ -220,7 +221,18 @@ rl.on('line', (line) => {
       description: 'Math plugin',
       runtime: { command: 'node', args: [pluginScript] },
       hooks: { beforeTool: false, afterTool: false, beforeExecute: false, afterExecute: false },
-      tools: [],
+      tools: [
+        {
+          name: 'add',
+          description: 'Add two numbers',
+          sensitive: false,
+          destructive: false,
+          inputSchema: {
+            type: 'object',
+            properties: { a: { type: 'number' }, b: { type: 'number' } },
+          },
+        },
+      ],
     });
     host.register('math', manifest, tmp, 'ws1');
 
@@ -230,7 +242,7 @@ rl.on('line', (line) => {
 
     const tools = host.listTools();
     assert.equal(tools.length, 1);
-    assert.equal(tools[0]?.name, 'add');
+    assert.equal(tools[0], 'add');
 
     const result = await host.callTool('add', { a: 2, b: 3 });
     assert.equal(result.ok, true);
@@ -246,9 +258,11 @@ test('PluginHost: hook gating by registry manifest', async () => {
   const tmp = mkdtempSync(path.join(tmpdir(), 'plugin-hooks-'));
   try {
     const pluginScript = path.join(tmp, 'plugin.js');
+    const hookLog = path.join(tmp, 'hooks.log');
     writeFileSync(
       pluginScript,
       `
+const fs = require('fs');
 const readline = require('readline');
 const rl = readline.createInterface({ input: process.stdin });
 const tools = {};
@@ -257,7 +271,7 @@ const manifest = {
   version: '1.0.0',
   description: 'Hook test plugin',
   tools: [],
-  hooks: ['beforeTool', 'afterTool'],
+  hooks: [],
   requiresCodrynTools: []
 };
 rl.on('line', (line) => {
@@ -268,6 +282,12 @@ rl.on('line', (line) => {
     process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { tools: [] } }) + '\\n');
   } else if (msg.method === 'ping') {
     process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { pong: true } }) + '\\n');
+  }
+});
+rl.on('line', (line) => {
+  const msg = JSON.parse(line);
+  if (msg.method === 'hooks/beforeTool') {
+    fs.appendFileSync(${JSON.stringify(hookLog)}, 'beforeTool ' + msg.params.pluginId + '\\n');
   }
 });
 `,
@@ -310,6 +330,10 @@ rl.on('line', (line) => {
       timestamp: Date.now(),
     });
 
+    // The manifest decides which hooks are sent, not the plugin report.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(readFileSync(hookLog, 'utf8').trim(), 'beforeTool hooked');
+
     await host.closeAll();
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -317,7 +341,7 @@ rl.on('line', (line) => {
 });
 
 test('createPluginTool: creates AgentTool with namespaced name', async () => {
-  const tool: PluginInternalTool = {
+  const tool: PluginToolContract = {
     name: 'scan',
     description: 'Scan for issues',
     inputSchema: { type: 'object', properties: { path: { type: 'string' } } },

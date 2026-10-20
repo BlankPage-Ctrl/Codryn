@@ -233,7 +233,7 @@ test('guard: states degrade to slots; only bootstrap text reaches the prompt', a
     await registerPlugin('good', goodDir);
 
     const s = memSettings();
-    const { states, skills } = await loadPluginStates(projectPath, 'ws1', s);
+    const { states, skills, host } = await loadPluginStates(projectPath, 'ws1', s);
     assert.ok(states.length > 0);
     assert.ok(skills.length > 0);
     assert.equal(skills[0]?.name, 'g-skill');
@@ -243,6 +243,8 @@ test('guard: states degrade to slots; only bootstrap text reaches the prompt', a
     assert.ok(good);
     assert.equal(buildPluginBootstrap([good]), 'Brainstorm first.');
 
+    await host.closeAll();
+    await fresh.host.closeAll();
     await unregisterPlugin('good');
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -313,6 +315,67 @@ test('registry: plugin skills slot between project and builtin, project wins dup
       clearSkillCache();
     }
   } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('tools: the agent only sees tools the manifest declares and the plugin implements', async () => {
+  const tmp = mkdtempSync(path.join(tmpdir(), 'plugins-contract-'));
+  try {
+    const dir = path.join(tmp, 'contract-demo');
+    const script = path.join(dir, 'plugin.cjs');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      script,
+      `
+const readline = require('readline');
+const rl = readline.createInterface({ input: process.stdin });
+rl.on('line', (line) => {
+  const msg = JSON.parse(line);
+  if (msg.method === 'initialize') {
+    const manifest = { name: 'Demo', version: '1.0.0', description: 'Demo', tools: ['kept'], hooks: [], requiresCodrynTools: [] };
+    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { manifest } }) + '\\n');
+  } else if (msg.method === 'tools/call') {
+    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { ok: true, text: 'done' } }) + '\\n');
+  } else if (msg.method === 'shutdown') {
+    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { shutdown: true } }) + '\\n');
+    process.exit(0);
+  }
+});
+`,
+    );
+    writeManifest(dir, {
+      ...baseManifest({ id: 'contract-demo' }),
+      runtime: { command: 'node', args: [script] },
+      tools: [
+        { name: 'kept', description: 'Implemented by the plugin.', sensitive: false },
+        { name: 'missing', description: 'Declared but not implemented.', sensitive: false },
+      ],
+    });
+    writeSkill(dir, 's1', 'Only skill');
+
+    await registerPlugin('contract-demo', dir);
+
+    const hitl = { requestAndWait: async () => ({}) };
+    const { states, tools, host } = await loadPluginStates(
+      path.join(tmp, 'proj'),
+      'ws1',
+      memSettings(),
+      undefined,
+      undefined,
+      hitl as never,
+    );
+
+    assert.deepEqual(
+      tools.map((tool) => tool.name).filter((name) => name.startsWith('contract-demo__')),
+      ['contract-demo__kept'],
+    );
+    const state = states.find((s) => s.id === 'contract-demo');
+    assert.ok(state?.caps?.notices.some((n) => n.includes('missing') && n.includes('hidden')));
+
+    await host.closeAll();
+  } finally {
+    await unregisterPlugin('contract-demo').catch(() => {});
     rmSync(tmp, { recursive: true, force: true });
   }
 });
@@ -578,7 +641,7 @@ test('actions: maxPlugins truncates the registry for runs and listing', async ()
     const listed = await listPlugins(ctx as never, { workspaceId: 'ws1' });
     assert.ok(listed.plugins.length <= 1);
 
-    const { states } = await loadPluginStates(
+    const { states, host } = await loadPluginStates(
       projectPath,
       'ws1',
       memSettings(),
@@ -586,6 +649,7 @@ test('actions: maxPlugins truncates the registry for runs and listing', async ()
       toPluginLimits({ maxPlugins: 1 }),
     );
     assert.ok(states.length <= 1);
+    await host.closeAll();
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
