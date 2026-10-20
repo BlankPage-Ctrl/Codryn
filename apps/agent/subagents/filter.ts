@@ -11,13 +11,10 @@ const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   'skill',
   'skill_list',
   'read_plan',
+  'request_human',
 ]);
 
 const PLAN_WRITE_TOOLS: ReadonlySet<string> = new Set(['write_plan', 'edit_plan']);
-
-// A child may always ask the human. The request reaches the parent and the
-// child, and the first answer closes it for both.
-const CHILD_ALWAYS_TOOLS: ReadonlySet<string> = new Set(['request_human']);
 
 // A hidden child must never delegate further. The parent owns the delegation
 // and depth is capped at one level.
@@ -27,10 +24,6 @@ function modeDefaults(mode: SubAgentDef['mode'], names: Set<string>): Set<string
   const out = new Set<string>();
   for (const name of names) {
     if (NEVER_CHILD_TOOLS.has(name)) continue;
-    if (CHILD_ALWAYS_TOOLS.has(name)) {
-      out.add(name);
-      continue;
-    }
     if (READ_ONLY_TOOLS.has(name)) {
       out.add(name);
       continue;
@@ -59,16 +52,13 @@ export function filterChildTools(all: AgentTool[], def: SubAgentDef): AgentTool[
   const names = new Set(all.map((t) => t.name));
   // An explicit allowlist overrides the mode default, so MCP and plugin
   // tools (unknown at authoring time) can be granted per sub-agent with
-  // exact names or `prefix__*` wildcards. The human stays reachable so a
-  // child can ask a question, and the delegate tool stays unreachable
+  // exact names or `prefix__*` wildcards. The delegate tool stays unreachable
   // regardless of what the frontmatter asks for.
   const allowed =
     def.tools && def.tools.length > 0
       ? new Set(
           [...names].filter(
-            (name) =>
-              !NEVER_CHILD_TOOLS.has(name) &&
-              (CHILD_ALWAYS_TOOLS.has(name) || matchesAny(def.tools!, name)),
+            (name) => !NEVER_CHILD_TOOLS.has(name) && matchesAny(def.tools!, name),
           ),
         )
       : modeDefaults(def.mode, names);

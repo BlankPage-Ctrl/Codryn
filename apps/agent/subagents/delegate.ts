@@ -119,8 +119,7 @@ function childSignal(parent: AbortSignal | undefined, timeoutMs: number): AbortS
 // its question expires while the child is already aborted.
 const HITL_TIMEOUT_MARGIN_MS = 15_000;
 
-function resolveChildTimeoutMs(def: SubAgentDef, canAskHuman: boolean): number {
-  if (!canAskHuman) return def.timeoutMs;
+function resolveChildTimeoutMs(def: SubAgentDef): number {
   return Math.max(def.timeoutMs, DEFAULT_TIMEOUT_MS + HITL_TIMEOUT_MARGIN_MS);
 }
 
@@ -244,15 +243,8 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
         ? childTools.map((tool) => withSubAgentHitlScope(tool, scope))
         : childTools;
 
-      const canAskHuman = scopedTools.some((tool) => tool.name === 'request_human');
-      const timeoutMs = resolveChildTimeoutMs(def, canAskHuman);
-      const system = canAskHuman
-        ? [
-            def.systemPrompt,
-            '',
-            'You can ask the user a question with the request_human tool. The answer comes back to you, so use it only when the task cannot move forward without it.',
-          ].join('\n')
-        : def.systemPrompt;
+      const timeoutMs = resolveChildTimeoutMs(def);
+      const system = def.systemPrompt
 
       let model = deps.parentModel;
       let fallback: string | null = null;

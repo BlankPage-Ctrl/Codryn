@@ -93,7 +93,7 @@ test('filterChildTools keeps read-only tools in ask mode and drops privileged on
 test('filterChildTools honors explicit tools and disallowedTools', () => {
   const def = { ...BUILTIN_SUBAGENTS[0]!, mode: 'edit' as const, tools: ['grep', 'edit_file'] };
   const names = filterChildTools(BASE_TOOLS, def).map((t) => t.name);
-  assert.deepEqual(names.sort(), ['edit_file', 'grep', 'request_human']);
+  assert.deepEqual(names.sort(), ['edit_file', 'grep']);
   const denied = {
     ...BUILTIN_SUBAGENTS[0]!,
     mode: 'edit' as const,
@@ -121,10 +121,10 @@ test('filterChildTools grants MCP and plugin tools via explicit allowlist', () =
   assert.ok(!askDefault.includes('mcp__github__search_code'));
   const def = { ...BUILTIN_SUBAGENTS[0]!, tools: ['mcp__github__search_code', 'my_plugin_tool'] };
   const names = filterChildTools(BASE_TOOLS, def).map((t) => t.name);
-  assert.deepEqual(names.sort(), ['mcp__github__search_code', 'my_plugin_tool', 'request_human']);
+  assert.deepEqual(names.sort(), ['mcp__github__search_code', 'my_plugin_tool']);
   const wild = { ...BUILTIN_SUBAGENTS[0]!, tools: ['mcp__*'] };
   const wildNames = filterChildTools(BASE_TOOLS, wild).map((t) => t.name);
-  assert.deepEqual(wildNames.sort(), ['mcp__github__search_code', 'request_human']);
+  assert.deepEqual(wildNames.sort(), ['mcp__github__search_code']);
   const denied = {
     ...BUILTIN_SUBAGENTS[0]!,
     mode: 'edit' as const,
