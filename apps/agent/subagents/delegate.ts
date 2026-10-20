@@ -92,6 +92,7 @@ export interface DelegateToolDeps {
   subLive?: ISubAgentLive;
   hitl?: Pick<IHitlService, 'listPending' | 'cancel'>;
   parentRun?: ChildRunScope;
+  buildChildBaseTools?: (onRichResult: OnRichResult) => AgentTool[];
   childToolset?: (args: ChildToolsetArgs) => AgentTool[];
 }
 
@@ -221,10 +222,23 @@ export function createSubAgentTool(deps: DelegateToolDeps): AgentTool[] {
             })
           : null;
 
+      // Tools built for the parent close over the parent's rich-result sink.
+      // Rebuild the base toolset with the child sink so a child tool never
+      // publishes work/rich events into the parent feed.
+      const childBaseTools =
+        deps.buildChildBaseTools && scope
+          ? deps.buildChildBaseTools(childRich)
+          : deps.baseTools;
+
       const childTools =
         deps.childToolset && scope
-          ? deps.childToolset({ baseTools: deps.baseTools, def, scope, onRichResult: childRich })
-          : filterChildTools(deps.baseTools, def);
+          ? deps.childToolset({
+              baseTools: childBaseTools,
+              def,
+              scope,
+              onRichResult: childRich,
+            })
+          : filterChildTools(childBaseTools, def);
 
       const scopedTools = scope
         ? childTools.map((tool) => withSubAgentHitlScope(tool, scope))

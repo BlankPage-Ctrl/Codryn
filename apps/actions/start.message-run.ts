@@ -279,31 +279,36 @@ export async function startMessageRun(
           });
           const buildRunTools = async () => {
             const liveSignal = getAbortSignal();
-            const baseTools = buildMessageRunToolset({
-              fm,
-              shellConsumer,
-              shellEnabled: ctx.shellEnabled,
-              skillSources,
-              hitlService: ctx.hitlService,
-              insightDeps,
-              workspaceId: params.workspaceId,
-              chatId: params.chatId,
-              projectPath: workspace.projectPath,
-              workspaceRoot: workspace.projectPath,
-              assistantMessageId,
-              runId,
-              ...(liveSignal ? { signal: liveSignal } : {}),
-              mode,
-              mcpTools,
-              pluginTools: pluginLoad.tools,
-              onRichResult: handleRich,
-              logger: ctx.logger,
-            });
+            // Each feed owner (parent, and each child) needs its own tool
+            // instances so rich results are published to the right feed.
+            const buildBaseTools = (onRichResult: OnRichResult) =>
+              buildMessageRunToolset({
+                fm,
+                shellConsumer,
+                shellEnabled: ctx.shellEnabled,
+                skillSources,
+                hitlService: ctx.hitlService,
+                insightDeps,
+                workspaceId: params.workspaceId,
+                chatId: params.chatId,
+                projectPath: workspace.projectPath,
+                workspaceRoot: workspace.projectPath,
+                assistantMessageId,
+                runId,
+                ...(liveSignal ? { signal: liveSignal } : {}),
+                mode,
+                mcpTools,
+                pluginTools: pluginLoad.tools,
+                onRichResult,
+                logger: ctx.logger,
+              });
+            const baseTools = buildBaseTools(handleRich);
             const delegateTools = createSubAgentTool({
               agents: subagents,
               parentModel: resolved.data,
               agent: ctx.agent,
               baseTools,
+              buildChildBaseTools: buildBaseTools,
               resolveModelHint: async (hint) => {
                 try {
                   const providers = await ctx.providerStore.findAllWithModels();

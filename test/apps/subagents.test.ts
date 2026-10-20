@@ -405,3 +405,82 @@ test('delegate streams a child run through subLive and scopes shell feed ids', a
     'shell tool-call feed ids must be prefixed with the parent run id',
   );
 });
+
+test('delegate rebuilds child tools so rich results never reach the parent feed', async () => {
+  const def = BUILTIN_SUBAGENTS[0]!;
+  const parentRich: { implement: string }[] = [];
+  const { live, chunks } = fakeSubLive();
+  let childTools: AgentTool[] = [];
+  let builderCalls = 0;
+
+  const agent = {
+    loop: (async () => {
+      const read = childTools.find((tool) => tool.name === 'read_file');
+      assert.ok(read);
+      await read.execute({}, { toolCallId: 'child_read' });
+      return { text: Promise.resolve('child answer') };
+    }) as unknown as Pick<AgentClient, 'loop'>['loop'],
+  };
+
+  const [tool] = createSubAgentTool({
+    agents: [def],
+    parentModel: PARENT_MODEL,
+    agent,
+    baseTools: BASE_TOOLS,
+    resolveModelHint: async () => null,
+    onRichResult: (rich) => parentRich.push(rich),
+    subLive: live,
+    parentRun: {
+      parentRunId: 'run_parent',
+      chatId: 'chat-1',
+      workspaceId: 'ws-1',
+      assistantMessageId: 'msg-1',
+    },
+    buildChildBaseTools: (onRichResult) => {
+      builderCalls += 1;
+      return [
+        {
+          name: 'read_file',
+          description: 'child read',
+          inputSchema: z.object({}),
+          execute: async (_args, options) => {
+            if (options?.toolCallId) {
+              onRichResult({
+                toolCallId: options.toolCallId,
+                implement: 'read_file',
+                body: { path: 'a.ts' },
+              });
+            }
+            return 'ok';
+          },
+        },
+      ];
+    },
+    childToolset: (args) => {
+      childTools = args.baseTools;
+      return args.baseTools;
+    },
+    logger: { info() {}, error() {}, warn() {}, debug() {} },
+  });
+
+  const out = (await tool!.execute(
+    { agent_name: def.name, title: 'Read a file', task: 'read a file' },
+    { toolCallId: 'call_1' },
+  )) as string;
+
+  assert.ok(out.includes('child answer'));
+  assert.equal(builderCalls, 1);
+  assert.ok(
+    !parentRich.some((rich) => rich.implement === 'read_file'),
+    'child rich results must not reach the parent sink',
+  );
+  assert.ok(
+    chunks.some(
+      (line) =>
+        line.includes('"type":"notice"') &&
+        line.includes('"callId":"child_read"') &&
+        line.includes('"runId":"sub:run_parent:call_1"'),
+    ),
+    'child rich results must be published to the child feed',
+  );
+});
