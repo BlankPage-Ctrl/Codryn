@@ -101,6 +101,30 @@ test('a request raised by the parent run stays unscoped', async () => {
   assert.equal(subAgentScopeFromMetadata((captured as HitlRequest).metadata), null);
 });
 
+test('the parent request_human carries the run id', async () => {
+  const { svc, bus } = makeService();
+  const scoped = scopeAwareHitlService(svc);
+  const tool = createHitlTool(scoped, {
+    chatId: 'chat-1',
+    workspaceId: 'ws-1',
+    runId: 'run_1',
+  })[0]!;
+
+  let captured: HitlRequest | null = null;
+  bus.on('request', (request) => {
+    captured = request;
+    void svc.submitResponse(request.id, { outcome: 'approved' });
+  });
+
+  await tool.execute(
+    { kind: 'approval', title: 'Ship it?', metadata: { runId: 'forged' } },
+    { toolCallId: 'call-1' },
+  );
+
+  assert.ok(captured);
+  assert.equal((captured as HitlRequest).metadata.runId, 'run_1');
+});
+
 test('the child scope overrides a scope the model tried to forge', async () => {
   const { svc, bus } = makeService();
   const scoped = scopeAwareHitlService(svc);

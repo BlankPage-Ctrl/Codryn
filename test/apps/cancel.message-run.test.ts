@@ -94,27 +94,35 @@ test('cancelMessageRun kills the live shell of the run as SHELL_KILLED', async (
   assert.equal(outcome.error.code, 'SHELL_KILLED');
 });
 
-test('cancelMessageRun aborts pending approvals and cancels shell HITL requests', async (t) => {
+test('cancelMessageRun aborts pending approvals and cancels HITL requests of the run', async (t) => {
   const root = await tempRoot(t);
   void root;
   const runService = new RunsService(new RunsRepository(new RunHotStorage()));
   const shellService = makeShellService();
   const cancelledHitlIds: string[] = [];
-  const ctx = makeCtx({
-    runService,
-    shellService,
-    hitlPending: [
-      { id: 'hitl-shell-1', chatId: 'chat-1', metadata: { source: 'shell' } },
-      { id: 'hitl-other-1', chatId: 'chat-1', metadata: { source: 'ask' } },
-      { id: 'hitl-shell-2', chatId: 'chat-2', metadata: { source: 'shell' } },
-    ],
-    cancelledHitlIds,
-  });
 
   const run = await runService.create({
     chatId: 'chat-1',
     workspaceId: 'ws-1',
     assistantMessageId: 'msg-1',
+  });
+
+  const ctx = makeCtx({
+    runService,
+    shellService,
+    hitlPending: [
+      { id: 'hitl-shell-1', chatId: 'chat-1', metadata: { source: 'shell' } },
+      { id: 'hitl-agent-legacy', chatId: 'chat-1', metadata: { source: 'agent' } },
+      { id: 'hitl-agent-run', chatId: 'chat-1', metadata: { source: 'agent', runId: run.runId } },
+      {
+        id: 'hitl-agent-other-run',
+        chatId: 'chat-1',
+        metadata: { source: 'agent', runId: 'run-other' },
+      },
+      { id: 'hitl-other-1', chatId: 'chat-1', metadata: { source: 'ask' } },
+      { id: 'hitl-shell-2', chatId: 'chat-2', metadata: { source: 'shell' } },
+    ],
+    cancelledHitlIds,
   });
 
   // One approval-pending shell under this run, one under another run.
@@ -138,8 +146,8 @@ test('cancelMessageRun aborts pending approvals and cancels shell HITL requests'
   });
   assert.equal(finished.status, 'cancelled');
 
-  // Only the shell approval request of this chat was cancelled.
-  assert.deepEqual(cancelledHitlIds, ['hitl-shell-1']);
+  // Only this chat's shell and agent requests were cancelled.
+  assert.deepEqual(cancelledHitlIds, ['hitl-shell-1', 'hitl-agent-legacy', 'hitl-agent-run']);
   // Only this run's pending approval was dropped; the other run still waits.
   assert.equal((await shellService.cancelPendingForRun(run.runId)).cancelledCount, 0);
   assert.equal((await shellService.cancelPendingForRun('run-other')).cancelledCount, 1);

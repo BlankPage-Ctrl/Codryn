@@ -152,6 +152,7 @@ export type HitlToolInput = z.infer<typeof hitlToolSchema>;
 export interface HitlToolDeps {
   chatId: string;
   workspaceId: string;
+  runId?: string;
   executionId?: string;
   timeoutMs?: number;
 }
@@ -219,6 +220,7 @@ function toHitlInput(
       kind: args.kind,
       ...(toolCallId ? { toolCallId } : {}),
       ...(args.metadata ?? {}),
+      ...(deps.runId ? { runId: deps.runId } : {}),
     },
   };
 

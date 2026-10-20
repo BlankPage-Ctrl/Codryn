@@ -158,7 +158,11 @@ export function buildMessageRunToolset(deps: MessageToolsetDeps): AgentTool[] {
       : [...createReadTodoTool({ projectPath, chatId })]),
     ...createSkillTool({ sources: deps.skillSources, logger }),
     ...createSkillListTool({ sources: deps.skillSources, logger }),
-    ...createHitlTool(hitlService, { chatId, workspaceId }, { onRichResult: deps.onRichResult }),
+    ...createHitlTool(
+      hitlService,
+      { chatId, workspaceId, runId },
+      { onRichResult: deps.onRichResult },
+    ),
     ...(deps.shellEnabled
       ? createShellTool(deps.shellConsumer, {
           chatId,

@@ -44,10 +44,16 @@ async function cancelRunHitlRequests(ctx: Container, chatId: string, runId: stri
   const pending = await ctx.hitlService.listPending();
   for (const request of pending) {
     if (request.chatId !== chatId) continue;
+    const taggedRunId = request.metadata?.runId;
     const isShellApproval = request.metadata?.source === 'shell';
+    const isAgentRequest = request.metadata?.source === 'agent';
     const owner = subAgentScopeFromMetadata(request.metadata);
     const isSubAgentRequest = owner?.parentRunId === runId;
-    if (!isShellApproval && !isSubAgentRequest) continue;
+    const belongsToRun =
+      typeof taggedRunId === 'string' && taggedRunId.length > 0
+        ? taggedRunId === runId
+        : isShellApproval || isAgentRequest || isSubAgentRequest;
+    if (!belongsToRun) continue;
     try {
       await ctx.hitlService.cancel(request.id);
     } catch {
