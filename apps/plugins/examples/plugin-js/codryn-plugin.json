@@ -19,12 +19,6 @@
     "command": "node",
     "args": ["./plugin.mjs"]
   },
-  "hooks": {
-    "beforeTool": { "mode": "observe" },
-    "afterTool": { "mode": "observe" },
-    "beforeExecute": false,
-    "afterExecute": false
-  },
   "tools": [
     {
       "name": "scan_vulnerability",

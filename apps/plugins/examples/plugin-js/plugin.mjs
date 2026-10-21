@@ -21,13 +21,4 @@ definePlugin({
       return `Security advisory for ${pkg}@${version}: No known vulnerabilities.`;
     },
   },
-
-  hooks: {
-    beforeTool: (payload) => {
-      console.error(`[hook] beforeTool: ${payload.pluginId}/${payload.tool}`);
-    },
-    afterTool: (payload) => {
-      console.error(`[hook] afterTool: ${payload.pluginId}/${payload.tool}`);
-    },
-  },
 });

@@ -29,10 +29,9 @@ function registryManifest(partial: {
   version: string;
   description: string;
   runtime?: { command: string; args?: string[] };
-  hooks?: Partial<NonNullable<CodrynPluginManifest['hooks']>>;
   tools?: CodrynPluginManifest['tools'];
 }): CodrynPluginManifest {
-  const { runtime, hooks, ...rest } = partial;
+  const { runtime, ...rest } = partial;
   return {
     permissions: { shell: false, network: false, sensitive: false },
     lifecycle: {},
@@ -40,13 +39,6 @@ function registryManifest(partial: {
     tools: [],
     ...rest,
     ...(runtime ? { runtime: { args: [], env: {}, ...runtime } } : {}),
-    hooks: {
-      beforeTool: false,
-      afterTool: false,
-      beforeExecute: false,
-      afterExecute: false,
-      ...hooks,
-    },
   };
 }
 
@@ -74,7 +66,6 @@ const manifest = {
   version: '1.0.0',
   description: 'Test plugin',
   tools: Object.keys(tools),
-  hooks: ['beforeTool'],
   requiresCodrynTools: []
 };
 rl.on('line', (line) => {
@@ -113,7 +104,6 @@ rl.on('line', (line) => {
     assert.equal(handle.internalManifest?.name, 'Test Plugin');
     assert.equal(handle.tools.length, 1);
     assert.equal(handle.tools[0], 'echo');
-    assert.equal(handle.hooks.length, 1);
 
     const pong = await proc.ping();
     assert.equal(pong, true);
@@ -188,7 +178,6 @@ const manifest = {
   version: '1.0.0',
   description: 'Math operations',
   tools: Object.keys(tools),
-  hooks: [],
   requiresCodrynTools: []
 };
 rl.on('line', (line) => {
@@ -221,7 +210,6 @@ rl.on('line', (line) => {
       version: '1.0.0',
       description: 'Math plugin',
       runtime: { command: 'node', args: [pluginScript] },
-      hooks: { beforeTool: false, afterTool: false, beforeExecute: false, afterExecute: false },
       tools: [
         {
           name: 'add',
@@ -244,48 +232,6 @@ rl.on('line', (line) => {
     assert.deepEqual(host.getRuntimeManifest('math')?.tools, ['add']);
 
     await host.closeAll();
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
-});
-
-test('manifest: hooks schema accepts valid hook declarations', async () => {
-  const tmp = mkdtempSync(path.join(tmpdir(), 'plugin-manifest-'));
-  try {
-    const dir = path.join(tmp, 'demo');
-    writeManifest(dir, {
-      ...baseManifest(),
-      hooks: {
-        beforeTool: true,
-        afterTool: true,
-        beforeExecute: false,
-        afterExecute: false,
-      },
-    });
-
-    const loaded = await loadCodrynManifest(dir);
-    assert.ok(loaded.manifest);
-    assert.equal(loaded.manifest.hooks.beforeTool, true);
-    assert.equal(loaded.manifest.hooks.afterTool, true);
-    assert.equal(loaded.manifest.hooks.beforeExecute, false);
-    assert.equal(loaded.manifest.hooks.afterExecute, false);
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
-});
-
-test('manifest: hooks default to false when not specified', async () => {
-  const tmp = mkdtempSync(path.join(tmpdir(), 'plugin-manifest-default-'));
-  try {
-    const dir = path.join(tmp, 'demo');
-    writeManifest(dir, baseManifest());
-
-    const loaded = await loadCodrynManifest(dir);
-    assert.ok(loaded.manifest);
-    assert.equal(loaded.manifest.hooks.beforeTool, false);
-    assert.equal(loaded.manifest.hooks.afterTool, false);
-    assert.equal(loaded.manifest.hooks.beforeExecute, false);
-    assert.equal(loaded.manifest.hooks.afterExecute, false);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

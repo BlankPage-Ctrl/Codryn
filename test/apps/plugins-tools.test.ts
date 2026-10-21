@@ -31,7 +31,6 @@ const manifest = {
   version: '1.0.0',
   description: 'Math operations',
   tools: Object.keys(tools),
-  hooks: [],
   requiresCodrynTools: []
 };
 rl.on('line', (line) => {
@@ -68,12 +67,6 @@ function mathManifest(): CodrynPluginManifest {
     lifecycle: {},
     limits: { maxSkills: 40, maxSkillBytes: 1_000_000 },
     runtime: { command: 'node', args: ['./plugin.js'], env: {} },
-    hooks: {
-      beforeTool: false,
-      afterTool: false,
-      beforeExecute: false,
-      afterExecute: false,
-    },
     tools: [
       {
         name: 'add',

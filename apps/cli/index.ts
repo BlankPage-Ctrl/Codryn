@@ -2,10 +2,7 @@ import 'dotenv/config';
 import { Command } from 'commander';
 import { ConfigService, t, resolveDatabasePath } from '../../src/config/index.js';
 import { defaultShellForPlatform } from '../../src/shell/index.js';
-import {
-  READONLY_COMMANDS,
-  createSecureDefaults,
-} from '../shared/shell-consumer.js';
+import { READONLY_COMMANDS, createSecureDefaults } from '../shared/shell-consumer.js';
 import { SENSITIVE_FILE_PATTERNS } from '../shared/fm-permission.js';
 import { startServer } from '../server.js';
 import { startStdio } from '../stdio/index.js';
@@ -55,12 +52,6 @@ const configShape = {
     maxPlugins: t.number().default(8),
     maxSkillsPerPlugin: t.number().default(40),
     maxToolsPerPlugin: t.number().default(16),
-    hooks: {
-      enabled: t.boolean().default(true),
-      timeoutMs: t.number().default(2_000),
-      maxWriters: t.number().default(4),
-      conflictPolicy: t.enum(['reject', 'priority', 'ask-user']).default('reject'),
-    },
   },
   logging: {
     level: t.string().default(''),

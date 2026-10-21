@@ -47,69 +47,6 @@ export { dedupeToolDecls, scanToolDeclarations } from './safety.js';
 export { resolvePluginContract, type PluginContract, type PluginToolContract } from './contract.js';
 export { buildPluginBootstrap, loadPluginStates, type PluginLoadResult } from './guard.js';
 export {
-  HOOK_CONTRACTS,
-  HOOK_MODES,
-  hookContract,
-  hookAllowsMode,
-  isHookMode,
-  resolveHookSubscription,
-  PluginHookModeSchema,
-  PluginHookDeclSchema,
-  PluginHookEntrySchema,
-  type HookMode,
-  type HookContract,
-  type HookSubscription,
-  type HookTarget,
-  type PluginHookDecl,
-} from './hooks/contracts.js';
-export {
-  PluginHookNames,
-  ALL_HOOK_NAMES,
-  PluginHookMethods,
-  HOOK_NAME_TO_METHOD,
-  type PluginHookName,
-  type PluginHookMethod,
-} from './hooks/names.js';
-export {
-  diffPayload,
-  applyChanges,
-  escapePointerSegment,
-  unescapePointerSegment,
-  pointerSegments,
-  type HookChange,
-  type HookChangeOp,
-} from './hooks/diff.js';
-export {
-  mergeHookWrites,
-  type HookWrite,
-  type HookConflict,
-  type HookConflictPolicy,
-  type HookMergeResult,
-} from './hooks/merge.js';
-export {
-  HookBus,
-  type HookBusOptions,
-  type HookContext,
-  type HookOutcome,
-  type HookTransport,
-} from './hooks/bus.js';
-export { createHookTransport, registerHookRequestHandler } from './hooks/transport.js';
-export { resolveHookTargets } from './hooks/subscriptions.js';
-export {
-  HOOK_DESCRIBE_METHOD,
-  describeHooks,
-  type AfterExecutePayload,
-  type AfterToolPayload,
-  type BeforeExecutePayload,
-  type BeforeToolPayload,
-  type HookPayloads,
-  type PluginHookDescribeEntry,
-  type PluginHookDescribeResult,
-  type PluginHookRequestParams,
-  type PluginHookResult,
-  type PluginHookVeto,
-} from './hooks/protocol.js';
-export {
   PluginToolMethods,
   type PluginToolMethod,
   type PluginToolsCallParams,

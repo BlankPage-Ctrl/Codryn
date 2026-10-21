@@ -9,10 +9,6 @@ export interface PluginInternalManifest {
   description: string;
   /** Names of the tools the plugin implements. */
   tools: string[];
-  /** Names of the hooks the plugin listens to. */
-  hooks: string[];
-  /** The mode the plugin implements per hook, when it reports one. */
-  hookModes?: Record<string, string>;
   /** Codryn tool capabilities this plugin needs (e.g. shell, file, network). */
   requiresCodrynTools: string[];
 }
@@ -33,8 +29,6 @@ export interface PluginProcessHandle {
   internalManifest: PluginInternalManifest | null;
   /** Empty until ready. */
   tools: string[];
-  /** Empty until ready. */
-  hooks: string[];
   /** Set when state is 'error'. */
   error: string | null;
   spawnedAt: number;

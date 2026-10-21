@@ -42,7 +42,7 @@ export interface PluginIncomingRequest {
 /**
  * The tunnel: it owns the plugin processes and moves frames.
  *
- * It knows nothing about what the frames mean. A consumer layer (tools, hooks)
+ * It knows nothing about what the frames mean. A consumer layer (tools)
  * brings its own methods and asks for them here.
  */
 export class PluginHost extends EventEmitter {

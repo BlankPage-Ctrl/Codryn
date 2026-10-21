@@ -21,14 +21,13 @@ function report(overrides: Partial<PluginInternalManifest> = {}): PluginInternal
     version: '1.0.0',
     description: 'Demo plugin',
     tools: [],
-    hooks: [],
     requiresCodrynTools: [],
     ...overrides,
   };
 }
 
 test('contract: manifest declares the tools the agent sees', () => {
-  const contract = resolvePluginContract([decl()], undefined, report({ tools: ['scan'] }));
+  const contract = resolvePluginContract([decl()], report({ tools: ['scan'] }));
 
   assert.equal(contract.tools.length, 1);
   assert.equal(contract.tools[0]?.name, 'scan');
@@ -43,7 +42,6 @@ test('contract: manifest declares the tools the agent sees', () => {
 test('contract: sensitive flags come from the manifest, not the plugin report', () => {
   const contract = resolvePluginContract(
     [decl({ sensitive: true, destructive: true })],
-    undefined,
     report({ tools: ['scan'] }),
   );
 
@@ -52,14 +50,14 @@ test('contract: sensitive flags come from the manifest, not the plugin report', 
 });
 
 test('contract: a tool the plugin does not implement is hidden', () => {
-  const contract = resolvePluginContract([decl()], undefined, report({ tools: [] }));
+  const contract = resolvePluginContract([decl()], report({ tools: [] }));
 
   assert.equal(contract.tools.length, 0);
   assert.match(contract.notices[0] ?? '', /not implement/);
 });
 
 test('contract: a tool the plugin adds is never exposed', () => {
-  const contract = resolvePluginContract([decl()], undefined, report({ tools: ['scan', 'extra'] }));
+  const contract = resolvePluginContract([decl()], report({ tools: ['scan', 'extra'] }));
 
   assert.deepEqual(
     contract.tools.map((tool) => tool.name),
@@ -68,41 +66,8 @@ test('contract: a tool the plugin adds is never exposed', () => {
   assert.match(contract.notices.join(' '), /"extra"/);
 });
 
-test('contract: hooks come from the manifest', () => {
-  const contract = resolvePluginContract(
-    [],
-    { beforeTool: true, afterTool: false, beforeExecute: false, afterExecute: false },
-    report({ hooks: ['beforeTool'] }),
-  );
-
-  assert.deepEqual(contract.hooks, ['beforeTool']);
-  assert.deepEqual(contract.notices, []);
-});
-
-test('contract: a declared hook the plugin ignores is reported', () => {
-  const contract = resolvePluginContract(
-    [],
-    { beforeTool: true, afterTool: true, beforeExecute: false, afterExecute: false },
-    report({ hooks: [] }),
-  );
-
-  assert.deepEqual(contract.hooks, ['beforeTool', 'afterTool']);
-  assert.match(contract.notices.join(' '), /does not subscribe/);
-});
-
-test('contract: a hook the plugin subscribes to but does not declare is reported', () => {
-  const contract = resolvePluginContract(
-    [],
-    { beforeTool: false, afterTool: false, beforeExecute: false, afterExecute: false },
-    report({ hooks: ['beforeTool'] }),
-  );
-
-  assert.deepEqual(contract.hooks, []);
-  assert.match(contract.notices.join(' '), /never receives it/);
-});
-
 test('contract: without a plugin report every declared tool is exposed', () => {
-  const contract = resolvePluginContract([decl()], undefined, null);
+  const contract = resolvePluginContract([decl()], null);
 
   assert.equal(contract.tools.length, 1);
   assert.deepEqual(contract.notices, []);

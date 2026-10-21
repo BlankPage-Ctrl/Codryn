@@ -10,8 +10,6 @@ import {
   type PluginGlobalLimits,
 } from './config.js';
 import { PluginHost } from './host.js';
-import { HookBus } from './hooks/bus.js';
-import { createHookTransport, registerHookRequestHandler } from './hooks/transport.js';
 import { createPluginTools } from './tools/bridge.js';
 import { resolvePluginContract } from './contract.js';
 import type { PluginToolDecl } from './native.js';
@@ -24,11 +22,6 @@ export interface PluginLoadResult {
   skills: PluginSkill[];
   tools: AgentTool[];
   host: PluginHost;
-  /**
-   * The bus a hook pusher would use. Nothing calls it yet, so no plugin
-   * receives a hook.
-   */
-  hooks: HookBus;
 }
 
 function oneLine(text: string): string {
@@ -51,16 +44,6 @@ export async function loadPluginStates(
   const states: PluginState[] = [];
   const skills: PluginSkill[] = [];
   const host = new PluginHost({ logger: logger as never });
-  registerHookRequestHandler(host);
-  const hooks = new HookBus({
-    transport: createHookTransport(host),
-    logger: logger as never,
-    enabled: limits.hooks.enabled,
-    timeoutMs: limits.hooks.timeoutMs,
-    maxWriters: limits.hooks.maxWriters,
-    conflictPolicy: limits.hooks.conflictPolicy,
-    hitl,
-  });
   const declaredTools = new Map<string, PluginToolDecl[]>();
   const stateById = new Map<string, PluginState>();
 
@@ -69,7 +52,7 @@ export async function loadPluginStates(
     entries = await loadRegisteredPlugins(logger);
   } catch (err) {
     logger?.warn({ err }, 'plugins: registry load failed, continuing without plugins');
-    return { states, skills, tools: [], host, hooks };
+    return { states, skills, tools: [], host };
   }
   if (entries.length > limits.maxPlugins) {
     logger?.warn(
@@ -164,7 +147,6 @@ export async function loadPluginStates(
       const handle = await host.ensurePlugin(pluginId);
       const contract = resolvePluginContract(
         declaredTools.get(pluginId) ?? [],
-        host.getPlugin(pluginId)?.manifest.hooks,
         handle.internalManifest,
       );
       const state = stateById.get(pluginId);
@@ -185,7 +167,7 @@ export async function loadPluginStates(
     }
   }
 
-  return { states, skills, tools, host, hooks };
+  return { states, skills, tools, host };
 }
 
 export function buildPluginBootstrap(states: PluginState[]): string | null {

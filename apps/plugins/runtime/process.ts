@@ -39,11 +39,6 @@ function normalizeToolNames(raw: unknown): string[] {
   return names;
 }
 
-function normalizeNameList(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((name): name is string => typeof name === 'string');
-}
-
 export interface PluginRuntimeConfig {
   command: string;
   args: string[];
@@ -75,7 +70,6 @@ export class PluginProcess extends EventEmitter {
   private state: PluginProcessState = 'spawning';
   private internalManifest: PluginInternalManifest | null = null;
   private tools: string[] = [];
-  private hooks: string[] = [];
   private error: string | null = null;
   private spawnedAt = Date.now();
   private lastActivityAt = Date.now();
@@ -104,7 +98,6 @@ export class PluginProcess extends EventEmitter {
       state: this.state,
       internalManifest: this.internalManifest,
       tools: this.tools,
-      hooks: this.hooks,
       error: this.error,
       spawnedAt: this.spawnedAt,
       lastActivityAt: this.lastActivityAt,
@@ -190,20 +183,15 @@ export class PluginProcess extends EventEmitter {
         version: reported?.version ?? '0.0.0',
         description: reported?.description ?? '',
         tools: normalizeToolNames(reported?.tools),
-        hooks: normalizeNameList(reported?.hooks),
         requiresCodrynTools: Array.isArray(reported?.requiresCodrynTools)
           ? reported.requiresCodrynTools
           : [],
       };
       this.tools = this.internalManifest.tools;
-      this.hooks = this.internalManifest.hooks;
       this.state = 'ready';
       this.lastActivityAt = Date.now();
 
-      this.logger.info(
-        { plugin: this.id, tools: this.tools.length, hooks: this.hooks.length },
-        'plugin ready',
-      );
+      this.logger.info({ plugin: this.id, tools: this.tools.length }, 'plugin ready');
 
       return this.handle;
     } catch (err) {

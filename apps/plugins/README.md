@@ -39,11 +39,9 @@ stderr is log-only.
 | backend sends | `tools/list`                               | reply `{ tools }` (names)                                    |
 | backend sends | `tools/call`                               | `{ name, arguments }` (bare tool name), reply `{ ok, text }` |
 | backend sends | `ping` / `shutdown`                        | liveness and graceful exit                                   |
-| plugin sends  | `hooks/beforeTool`, `hooks/afterTool`, ... | notifications, only for hooks declared in the manifest       |
 
-The runtime `manifest` (from `initialize`) reports the implemented tool names
-and the observed hook names. It never carries the contract: the manifest on
-disk owns that.
+The runtime `manifest` (from `initialize`) reports the implemented tool names.
+It never carries the contract: the manifest on disk owns that.
 
 ## Writing a plugin
 
@@ -56,9 +54,6 @@ import { definePlugin } from './codryn-plugin-sdk.mjs';
 definePlugin({
   tools: {
     scan_vulnerability: async ({ path = '.' }) => `Scanned ${path}.`,
-  },
-  hooks: {
-    beforeTool: (payload) => console.error(payload.tool),
   },
 });
 ```

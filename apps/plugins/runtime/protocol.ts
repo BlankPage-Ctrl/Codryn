@@ -2,7 +2,7 @@ import type { PluginInternalManifest } from './types.js';
 
 /**
  * The tunnel vocabulary: session control only. Everything a plugin can offer
- * (tools, hooks) lives in its own consumer layer and brings its own methods.
+ * (tools) lives in its own consumer layer and brings its own methods.
  */
 export const PluginSessionMethods = {
   /** Handshake; the plugin replies with its internal manifest. */

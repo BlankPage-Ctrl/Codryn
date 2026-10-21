@@ -333,7 +333,7 @@ const rl = readline.createInterface({ input: process.stdin });
 rl.on('line', (line) => {
   const msg = JSON.parse(line);
   if (msg.method === 'initialize') {
-    const manifest = { name: 'Demo', version: '1.0.0', description: 'Demo', tools: ['kept'], hooks: [], requiresCodrynTools: [] };
+    const manifest = { name: 'Demo', version: '1.0.0', description: 'Demo', tools: ['kept'], requiresCodrynTools: [] };
     process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { manifest } }) + '\\n');
   } else if (msg.method === 'tools/call') {
     process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { ok: true, text: 'done' } }) + '\\n');
@@ -536,23 +536,15 @@ test('config: unofficial feature defaults off; partial merge keeps defaults', as
     maxPlugins: 8,
     maxSkillsPerPlugin: 40,
     maxToolsPerPlugin: 16,
-    hooks: { enabled: true, timeoutMs: 2_000, maxWriters: 4, conflictPolicy: 'reject' },
   });
   assert.deepEqual(toPluginLimits({ maxPlugins: 2 }), {
     maxPlugins: 2,
     maxSkillsPerPlugin: 40,
     maxToolsPerPlugin: 16,
-    hooks: { enabled: true, timeoutMs: 2_000, maxWriters: 4, conflictPolicy: 'reject' },
   });
 });
 
 test('config: global ceilings cap skills and tools with notices', async () => {
-  const hookLimits = {
-    enabled: true,
-    timeoutMs: 2_000,
-    maxWriters: 4,
-    conflictPolicy: 'reject',
-  } as const;
   const caps = {
     format: 'codryn' as const,
     name: 'd',
@@ -570,7 +562,7 @@ test('config: global ceilings cap skills and tools with notices', async () => {
   };
   const capped = applyGlobalLimits(
     { ...caps },
-    { maxPlugins: 8, maxSkillsPerPlugin: 2, maxToolsPerPlugin: 1, hooks: hookLimits },
+    { maxPlugins: 8, maxSkillsPerPlugin: 2, maxToolsPerPlugin: 1 },
   );
   assert.deepEqual(capped.skills, ['a', 'b']);
   assert.deepEqual(
@@ -581,7 +573,7 @@ test('config: global ceilings cap skills and tools with notices', async () => {
 
   const untouched = applyGlobalLimits(
     { ...caps },
-    { maxPlugins: 8, maxSkillsPerPlugin: 40, maxToolsPerPlugin: 16, hooks: hookLimits },
+    { maxPlugins: 8, maxSkillsPerPlugin: 40, maxToolsPerPlugin: 16 },
   );
   assert.deepEqual(untouched.skills, ['a', 'b', 'c']);
   assert.deepEqual(untouched.notices, []);
@@ -737,12 +729,6 @@ test('manifest: optional sections default when omitted (regression: NO MANIFEST)
       sensitive: false,
     });
     assert.deepEqual(loaded.manifest.limits, { maxSkills: 40, maxSkillBytes: 1_000_000 });
-    assert.deepEqual(loaded.manifest.hooks, {
-      beforeTool: false,
-      afterTool: false,
-      beforeExecute: false,
-      afterExecute: false,
-    });
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -758,7 +744,6 @@ test('discover: registered custom path validates manifest (regression: NO MANIFE
       permissions: { shell: false, network: true, sensitive: false },
       lifecycle: { bootstrap: 'Custom path plugin.' },
       limits: { maxSkills: 40, maxSkillBytes: 1_000_000 },
-      hooks: { beforeTool: true },
     });
 
     await unregisterPlugin(pluginId).catch(() => {});
