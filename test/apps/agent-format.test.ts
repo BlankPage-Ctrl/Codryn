@@ -7,9 +7,12 @@ import {
   formatGrepError,
   formatListDir,
   formatReadFile,
+  formatRunShell,
+  formatShellError,
   formatToolError,
   humanizeSize,
 } from '../../apps/agent/tools/format.js';
+import type { ShellRunData } from '../../src/shell/types/index.js';
 
 function file(name: string, size?: number): FileNode {
   return {
@@ -268,4 +271,79 @@ test('formatGrepError: per-code suggestions', () => {
   );
   assert.ok(formatGrepError('PATH_TRAVERSAL', 'Path traversal', '../x').includes('relative path'));
   assert.ok(formatGrepError('PATH_NOT_FOUND', 'missing', 'nope').includes('`list_files`'));
+});
+
+function shellData(overrides: Partial<ShellRunData> = {}): ShellRunData {
+  return {
+    command: 'echo hi',
+    cwd: '/workspace',
+    exitCode: 0,
+    stdout: 'hi\n',
+    stderr: '',
+    interleaved: 'hi\n',
+    stdoutAnsi: 'hi\n',
+    stderrAnsi: '',
+    interleavedAnsi: 'hi\n',
+    truncated: false,
+    spillPath: null,
+    durationMs: 42,
+    timedOut: false,
+    signal: null,
+    policy: { verdict: 'allow', segments: [] },
+    ...overrides,
+  };
+}
+
+test('formatRunShell: command, exit, stdout and no empty stderr section', () => {
+  const out = formatRunShell(shellData());
+  assert.match(out, /^# Shell: `echo hi`/);
+  assert.match(out, /- Exit code: 0/);
+  assert.match(out, /- Duration: 42ms/);
+  assert.match(out, /- CWD: `\/workspace`/);
+  assert.match(out, /## stdout\n```text\nhi\n```/);
+  assert.ok(!out.includes('## stderr'));
+});
+
+test('formatRunShell: non-zero exit, timeout, signal, stderr and truncation', () => {
+  const out = formatRunShell(
+    shellData({
+      command: 'make',
+      exitCode: 2,
+      stdout: 'partial',
+      stderr: 'boom',
+      durationMs: 1500,
+      timedOut: true,
+      signal: 'SIGTERM',
+      truncated: true,
+      spillPath: '.codryn/truncated/run_shell-abc.txt',
+    }),
+  );
+  assert.match(out, /- Exit code: 2/);
+  assert.match(out, /- Duration: 1.5s/);
+  assert.match(out, /- Timed out: yes/);
+  assert.match(out, /- Signal: `SIGTERM`/);
+  assert.match(out, /## stderr/);
+  assert.match(
+    out,
+    /output truncated; full output at `\.codryn\/truncated\/run_shell-abc\.txt`/,
+  );
+});
+
+test('formatRunShell: empty output marker', () => {
+  const out = formatRunShell(shellData({ stdout: '', interleaved: '' }));
+  assert.match(out, /_\(no output\)_/);
+});
+
+test('formatRunShell: long backtick runs get a longer fence', () => {
+  const out = formatRunShell(shellData({ stdout: 'a ``` b\n' }));
+  assert.match(out, /````text/);
+});
+
+test('formatShellError: per-code suggestions', () => {
+  assert.match(
+    formatShellError('REQUIRES_APPROVAL', 'needs approval'),
+    /needs human approval/,
+  );
+  assert.match(formatShellError('SHELL_KILLED', 'stopped'), /stopped by the user/);
+  assert.match(formatShellError('PARSE_FAILED', 'bad'), /could not be parsed/);
 });

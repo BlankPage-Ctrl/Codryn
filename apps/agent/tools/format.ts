@@ -10,6 +10,7 @@ import {
   type ReadFileData,
 } from '../../../src/fm/index.js';
 import type { HitlRequest } from '../../../src/human-in-the-loop/index.js';
+import type { ShellRunData } from '../../../src/shell/index.js';
 
 export const DEFAULT_LIST_LIMIT = 200;
 export const MAX_LIST_LIMIT = 500;
@@ -351,6 +352,76 @@ export function formatCreateFailure(code: string, message: string, path?: string
     return `${head}${where}\n**Suggestion**: Path escapes workspace root. Use a relative path inside the project (e.g. "src/foo.ts").`;
   }
   return `${head}${where}\n**Suggestion**: Verify the path is relative to project root and content is within 200k chars. Use \`list_files\` to inspect parent directory.`;
+}
+
+function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '0ms';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${Math.round((ms / 1000) * 10) / 10}s`;
+}
+
+function inlineCode(value: string): string {
+  return value.replace(/`/g, "'").replace(/\r?\n/g, ' ');
+}
+
+function fenceFor(content: string): string {
+  const runs = content.match(/`+/g) ?? [];
+  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0);
+  return '`'.repeat(Math.max(3, longest + 1));
+}
+
+function formatStream(label: string, content: string): string {
+  const body = content.replace(/\r?\n+$/, '');
+  const fence = fenceFor(body);
+  return `## ${label}\n${fence}text\n${body}\n${fence}`;
+}
+
+export function formatRunShell(data: ShellRunData): string {
+  const meta = [
+    `- Exit code: ${data.exitCode}`,
+    `- Duration: ${formatDuration(data.durationMs)}`,
+    `- CWD: \`${inlineCode(data.cwd)}\``,
+    ...(data.timedOut ? ['- Timed out: yes'] : []),
+    ...(data.signal ? [`- Signal: \`${inlineCode(data.signal)}\``] : []),
+  ];
+
+  const blocks = [`# Shell: \`${inlineCode(data.command)}\``, meta.join('\n')];
+  const hasStdout = data.stdout.trim().length > 0;
+  const hasStderr = data.stderr.trim().length > 0;
+
+  if (hasStdout) blocks.push(formatStream('stdout', data.stdout));
+  if (hasStderr) blocks.push(formatStream('stderr', data.stderr));
+  if (!hasStdout && !hasStderr) blocks.push('_(no output)_');
+
+  if (data.truncated) {
+    blocks.push(
+      data.spillPath
+        ? `_(output truncated; full output at \`${inlineCode(data.spillPath)}\`)_`
+        : '_(output truncated)_',
+    );
+  }
+
+  return blocks.join('\n\n');
+}
+
+export function formatShellError(code: string, message: string): string {
+  const head = `**Error**: \`${code}\` - ${message}`;
+  switch (code) {
+    case 'REQUIRES_APPROVAL':
+      return `${head}\n**Suggestion**: This command needs human approval. Ask the user to approve it, or choose a command allowed by policy.`;
+    case 'PERMISSION_DENIED':
+      return `${head}\n**Suggestion**: The command was blocked by the shell policy. Use an allowed command or ask the user to update the policy.`;
+    case 'SHELL_KILLED':
+      return `${head}\n**Suggestion**: Execution was stopped by the user. Do not retry unless the user asks.`;
+    case 'NOT_ENABLED':
+      return `${head}\n**Suggestion**: Shell execution is disabled for this workspace.`;
+    case 'PATH_TRAVERSAL':
+      return `${head}\n**Suggestion**: The working directory escapes the workspace. Use a path inside the workspace.`;
+    case 'PARSE_FAILED':
+      return `${head}\n**Suggestion**: The command could not be parsed. Simplify the command and retry.`;
+    default:
+      return `${head}\n**Suggestion**: Check the command and environment, then retry once.`;
+  }
 }
 
 function isEditFailureDetails(value: unknown): value is EditFailureDetails {

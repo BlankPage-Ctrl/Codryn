@@ -5,10 +5,12 @@ export interface AgentToolExecuteOptions {
   abortSignal?: AbortSignal;
 }
 
+export type AgentToolOutput = string | Promise<string>;
+
 export interface AgentTool<TSchema extends z.ZodTypeAny = z.ZodTypeAny> {
   name: string;
   description: string;
   inputSchema: TSchema;
 
-  execute: (args: z.infer<TSchema>, options?: AgentToolExecuteOptions) => unknown;
+  execute: (args: z.infer<TSchema>, options?: AgentToolExecuteOptions) => AgentToolOutput;
 }

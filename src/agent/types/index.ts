@@ -16,7 +16,7 @@ export type {
   ModelResolutionErrorCode,
 } from './model.js';
 export type { ModelCapability, CapabilityProvider } from './capability.js';
-export type { AgentTool, AgentToolExecuteOptions } from './tool.js';
+export type { AgentTool, AgentToolExecuteOptions, AgentToolOutput } from './tool.js';
 export type {
   StreamModelConfig,
   GenerateModelConfig,

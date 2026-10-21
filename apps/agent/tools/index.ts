@@ -64,6 +64,8 @@ export {
   formatEditFailure,
   formatCreateFile,
   formatCreateFailure,
+  formatRunShell,
+  formatShellError,
   formatSkillNotFound,
   formatSubAgentError,
   formatToolError,

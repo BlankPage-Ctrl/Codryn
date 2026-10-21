@@ -5,6 +5,7 @@ import { toRunShellRichBody, type OnRichResult } from './rich-result.js';
 import type { ShellConsumer, ShellOutcome, ShellRunData } from '../../../src/shell/index.js';
 import { isShellPendingApproval } from '../../../src/shell/index.js';
 import { truncateToolOutput } from '../utils/truncate.js';
+import { formatRunShell, formatShellError } from './format.js';
 
 export const runShellSchema = z.object({
   command: z
@@ -25,31 +26,11 @@ export const runShellSchema = z.object({
     .describe('Execution timeout in milliseconds.'),
 });
 
-function toRunResult(outcome: ShellOutcome) {
-  const executionId = outcome.executionId;
+function toRunResult(outcome: ShellOutcome): string {
   if (!outcome.ok) {
-    const error = outcome.error;
-    return {
-      executionId,
-      error: `${error.code}: ${error.message}`,
-      requiresApproval: error.requiresApproval,
-      auditedSegments: error.policy?.segments ?? [],
-    };
+    return formatShellError(outcome.error.code, outcome.error.message);
   }
-  const data = outcome.data;
-  return {
-    executionId,
-    command: data.command,
-    cwd: data.cwd,
-    exitCode: data.exitCode,
-    durationMs: data.durationMs,
-    timedOut: data.timedOut,
-    signal: data.signal,
-    stdout: data.stdout,
-    stderr: data.stderr,
-    truncated: data.truncated,
-    spillPath: data.spillPath,
-  };
+  return formatRunShell(outcome.data);
 }
 
 export interface ShellToolOptions {

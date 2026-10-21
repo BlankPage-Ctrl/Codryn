@@ -25,6 +25,7 @@ function stubTool(name: string): AgentTool {
 
 test('run_shell kills the live command when the agent aborts the tool', async () => {
   const killed: string[] = [];
+  let richExecutionId: string | undefined;
   let settle: ((outcome: ShellOutcome) => void) | null = null;
   const consumer = {
     workspaceRoot: '/tmp',
@@ -60,14 +61,24 @@ test('run_shell kills the live command when the agent aborts the tool', async ()
     // SAFE: test double for the class the tool only calls on.
   } as unknown as ShellConsumer;
 
-  const [tool] = createShellTool(consumer, { chatId: 'chat-1' });
+  const [tool] = createShellTool(consumer, {
+    chatId: 'chat-1',
+    onRichResult: (rich) => {
+      richExecutionId = (rich.body as { executionId?: string }).executionId;
+    },
+  });
   const controller = new AbortController();
-  const pending = tool.execute({ command: 'sleep 60' }, { abortSignal: controller.signal });
+  const pending = tool.execute(
+    { command: 'sleep 60' },
+    { abortSignal: controller.signal, toolCallId: 'call_shell' },
+  );
   controller.abort();
-  const result = (await pending) as { executionId: string };
+  const result = await pending;
 
+  assert.equal(typeof result, 'string');
+  assert.match(result, /# Shell:/);
   assert.equal(killed.length, 1);
-  assert.equal(result.executionId, killed[0]);
+  assert.equal(richExecutionId, killed[0]);
 });
 
 function abortingAgent(): Pick<AgentClient, 'loop'> {
