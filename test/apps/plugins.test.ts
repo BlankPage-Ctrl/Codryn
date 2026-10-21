@@ -536,15 +536,23 @@ test('config: unofficial feature defaults off; partial merge keeps defaults', as
     maxPlugins: 8,
     maxSkillsPerPlugin: 40,
     maxToolsPerPlugin: 16,
+    hooks: { enabled: true, timeoutMs: 2_000, maxWriters: 4, conflictPolicy: 'reject' },
   });
   assert.deepEqual(toPluginLimits({ maxPlugins: 2 }), {
     maxPlugins: 2,
     maxSkillsPerPlugin: 40,
     maxToolsPerPlugin: 16,
+    hooks: { enabled: true, timeoutMs: 2_000, maxWriters: 4, conflictPolicy: 'reject' },
   });
 });
 
 test('config: global ceilings cap skills and tools with notices', async () => {
+  const hookLimits = {
+    enabled: true,
+    timeoutMs: 2_000,
+    maxWriters: 4,
+    conflictPolicy: 'reject',
+  } as const;
   const caps = {
     format: 'codryn' as const,
     name: 'd',
@@ -562,7 +570,7 @@ test('config: global ceilings cap skills and tools with notices', async () => {
   };
   const capped = applyGlobalLimits(
     { ...caps },
-    { maxPlugins: 8, maxSkillsPerPlugin: 2, maxToolsPerPlugin: 1 },
+    { maxPlugins: 8, maxSkillsPerPlugin: 2, maxToolsPerPlugin: 1, hooks: hookLimits },
   );
   assert.deepEqual(capped.skills, ['a', 'b']);
   assert.deepEqual(
@@ -573,7 +581,7 @@ test('config: global ceilings cap skills and tools with notices', async () => {
 
   const untouched = applyGlobalLimits(
     { ...caps },
-    { maxPlugins: 8, maxSkillsPerPlugin: 40, maxToolsPerPlugin: 16 },
+    { maxPlugins: 8, maxSkillsPerPlugin: 40, maxToolsPerPlugin: 16, hooks: hookLimits },
   );
   assert.deepEqual(untouched.skills, ['a', 'b', 'c']);
   assert.deepEqual(untouched.notices, []);

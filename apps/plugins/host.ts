@@ -1,11 +1,15 @@
+import { EventEmitter } from 'node:events';
 import type { Logger } from '../shared/types.js';
 import {
   PluginProcess,
   type PluginProcessOptions,
   type PluginRuntimeConfig,
 } from './runtime/process.js';
-import type { PluginProcessHandle, PluginHookPayload } from './runtime/types.js';
-import { HOOK_NAME_TO_METHOD, type PluginHookName } from './runtime/protocol.js';
+import type {
+  PluginInternalManifest,
+  PluginProcessHandle,
+  PluginRequestMessage,
+} from './runtime/types.js';
 import type { CodrynPluginManifest } from './native.js';
 
 export interface PluginHostOptions {
@@ -14,24 +18,41 @@ export interface PluginHostOptions {
   logger?: Logger;
 }
 
-export interface PluginHostEntry {
+/** What a consumer layer may know about a registered plugin. */
+export interface PluginDescriptor {
   id: string;
   /** Registry manifest (from codryn-plugin.json). */
   manifest: CodrynPluginManifest;
   dir: string;
   workspaceId: string;
+}
+
+interface PluginHostEntry extends PluginDescriptor {
   runtime: PluginRuntimeConfig;
   /** Null until spawned. */
   process: PluginProcess | null;
 }
 
-export class PluginHost {
+/** A request that arrived from a plugin. */
+export interface PluginIncomingRequest {
+  pluginId: string;
+  message: PluginRequestMessage;
+}
+
+/**
+ * The tunnel: it owns the plugin processes and moves frames.
+ *
+ * It knows nothing about what the frames mean. A consumer layer (tools, hooks)
+ * brings its own methods and asks for them here.
+ */
+export class PluginHost extends EventEmitter {
   private plugins = new Map<string, PluginHostEntry>();
   private timeoutMs: number;
   private spawnTimeoutMs: number;
-  private logger: Logger;
+  readonly logger: Logger;
 
   constructor(opts: PluginHostOptions = {}) {
+    super();
     this.timeoutMs = opts.timeoutMs ?? 30_000;
     this.spawnTimeoutMs = opts.spawnTimeoutMs ?? 10_000;
     this.logger = opts.logger ?? console;
@@ -66,12 +87,24 @@ export class PluginHost {
     }
   }
 
-  getPlugin(id: string): PluginHostEntry | null {
-    return this.plugins.get(id) ?? null;
+  getPlugin(id: string): PluginDescriptor | null {
+    const entry = this.plugins.get(id);
+    if (!entry) return null;
+    return {
+      id: entry.id,
+      manifest: entry.manifest,
+      dir: entry.dir,
+      workspaceId: entry.workspaceId,
+    };
   }
 
-  getAllPlugins(): PluginHostEntry[] {
-    return [...this.plugins.values()];
+  getAllPlugins(): PluginDescriptor[] {
+    return [...this.plugins.values()].map((entry) => ({
+      id: entry.id,
+      manifest: entry.manifest,
+      dir: entry.dir,
+      workspaceId: entry.workspaceId,
+    }));
   }
 
   async setPluginEnabled(id: string, enabled: boolean): Promise<void> {
@@ -109,11 +142,14 @@ export class PluginHost {
       logger: this.logger,
     };
 
-    const process = new PluginProcess(processOpts);
-    entry.process = process;
+    const pluginProcess = new PluginProcess(processOpts);
+    pluginProcess.on('request', (message: PluginRequestMessage) => {
+      this.emit('request', { pluginId: id, message } satisfies PluginIncomingRequest);
+    });
+    entry.process = pluginProcess;
 
     try {
-      const handle = await process.start();
+      const handle = await pluginProcess.start();
       return handle;
     } catch (err) {
       entry.process = null;
@@ -121,99 +157,45 @@ export class PluginHost {
     }
   }
 
-  getReadyPlugins(): PluginProcessHandle[] {
-    const handles: PluginProcessHandle[] = [];
-    for (const entry of this.plugins.values()) {
-      if (entry.process?.isReady) {
-        handles.push(entry.process.handle);
-      }
-    }
-    return handles;
+  isPluginReady(id: string): boolean {
+    return this.plugins.get(id)?.process?.isReady === true;
+  }
+
+  /** What the plugin reported at handshake, null when it never did. */
+  getRuntimeManifest(id: string): PluginInternalManifest | null {
+    return this.plugins.get(id)?.process?.handle.internalManifest ?? null;
   }
 
   getRegisteredIds(): string[] {
     return [...this.plugins.keys()];
   }
 
-  listTools(): string[] {
-    const tools: string[] = [];
-    for (const entry of this.plugins.values()) {
-      if (entry.process?.isReady) {
-        tools.push(...entry.process.handle.tools);
-      }
-    }
-    return tools;
-  }
-
-  /** The manifest declares the tools; the plugin process only implements them. */
-  findPluginForTool(toolName: string): PluginHostEntry | null {
-    for (const entry of this.plugins.values()) {
-      const declared = entry.manifest.tools?.some((tool) => tool.name === toolName);
-      if (declared) {
-        return entry;
-      }
-    }
-    return null;
-  }
-
-  /** Tool names are "pluginId__toolName". The child process only knows the bare name. */
-  async callTool(
-    namespacedToolName: string,
-    args: Record<string, unknown>,
-    toolCallId?: string,
-  ): Promise<{ ok: boolean; text: string; code?: string; message?: string }> {
-    const match = namespacedToolName.match(/^([a-z0-9-]+)__([a-z0-9_-]+)$/i);
-    const pluginId = match?.[1];
-    const bareName = match?.[2] ?? namespacedToolName;
-    const entry =
-      this.findPluginForTool(bareName) ?? (pluginId ? this.plugins.get(pluginId) : undefined);
-    if (!entry?.process?.isReady) {
-      return {
-        ok: false,
-        text: `Tool ${namespacedToolName} not found`,
-        code: 'TOOL_NOT_FOUND',
-        message: `Plugin for tool ${namespacedToolName} not found`,
-      };
-    }
-
-    return entry.process.callTool(bareName, args, toolCallId);
-  }
-
-  /**
-   * Observe-only notifications, no response expected.
-   * The manifest decides which hooks a plugin receives.
-   */
-  dispatchHook(hookName: PluginHookName, payload: PluginHookPayload): void {
-    const method = HOOK_NAME_TO_METHOD[hookName];
-
-    for (const entry of this.plugins.values()) {
-      const manifestHookEnabled = entry.manifest.hooks?.[hookName] === true;
-      if (!manifestHookEnabled) continue;
-
-      if (!entry.process?.isReady) continue;
-
-      entry.process.notify(method, payload).catch((err) => {
-        this.logger.warn({ err, plugin: entry.id, hook: hookName }, 'plugin hook dispatch failed');
-      });
-    }
-  }
-
-  isHookSubscribed(pluginId: string, hookName: PluginHookName): boolean {
+  /** Sends a frame to a plugin without waiting for an answer. */
+  async notifyPlugin(pluginId: string, method: string, params?: unknown): Promise<void> {
     const entry = this.plugins.get(pluginId);
-    if (!entry) return false;
-    const manifestHookEnabled = entry.manifest.hooks?.[hookName] === true;
-    if (!manifestHookEnabled) return false;
-    return entry.process?.isReady === true;
+    if (!entry?.process?.isReady) return;
+    await entry.process.notify(method, params);
   }
 
-  getHookSubscribers(hookName: PluginHookName): string[] {
-    const subscribers: string[] = [];
-    for (const entry of this.plugins.values()) {
-      if (this.isHookSubscribed(entry.id, hookName)) {
-        subscribers.push(entry.id);
-      }
+  /** Sends a frame to a plugin and waits for its answer. */
+  async requestPlugin(
+    pluginId: string,
+    method: string,
+    params?: unknown,
+    timeoutMs?: number,
+  ): Promise<unknown> {
+    const entry = this.plugins.get(pluginId);
+    if (!entry?.process?.isReady) {
+      throw new Error(`Plugin ${pluginId} is not ready`);
     }
-    return subscribers;
+    return entry.process.request(method, params, timeoutMs ? { timeoutMs } : undefined);
+  }
+
+  /** Answers a request a plugin sent to Codryn. */
+  async respondPlugin(pluginId: string, id: string | number, result: unknown): Promise<void> {
+    const entry = this.plugins.get(pluginId);
+    if (!entry?.process?.isReady) return;
+    await entry.process.respond(id, result);
   }
 
   async closePlugin(id: string): Promise<void> {

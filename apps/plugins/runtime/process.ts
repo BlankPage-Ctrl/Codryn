@@ -11,21 +11,13 @@ import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import type { Logger } from '../../shared/types.js';
 import {
-  PluginMethods,
+  PluginSessionMethods,
+  type JsonRpcMessage,
   type PluginInitializeParams,
   type PluginInitializeResult,
-  type PluginToolsListResult,
-  type PluginToolsCallParams,
-  type PluginToolsCallResult,
   type PluginPingResult,
-  type PluginHookMethod,
 } from './protocol.js';
-import type {
-  PluginProcessHandle,
-  PluginProcessState,
-  PluginInternalManifest,
-  PluginHookPayload,
-} from './types.js';
+import type { PluginProcessHandle, PluginProcessState, PluginInternalManifest } from './types.js';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_SPAWN_TIMEOUT_MS = 10_000;
@@ -47,7 +39,7 @@ function normalizeToolNames(raw: unknown): string[] {
   return names;
 }
 
-function normalizeHookNames(raw: unknown): string[] {
+function normalizeNameList(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((name): name is string => typeof name === 'string');
 }
@@ -186,7 +178,7 @@ export class PluginProcess extends EventEmitter {
 
     this.state = 'initializing';
     try {
-      const result = (await this.request(PluginMethods.INITIALIZE, {
+      const result = (await this.request(PluginSessionMethods.INITIALIZE, {
         pluginId: this.id,
         workspaceId: this.workspaceId,
         cwd: this.cwd,
@@ -198,7 +190,7 @@ export class PluginProcess extends EventEmitter {
         version: reported?.version ?? '0.0.0',
         description: reported?.description ?? '',
         tools: normalizeToolNames(reported?.tools),
-        hooks: normalizeHookNames(reported?.hooks),
+        hooks: normalizeNameList(reported?.hooks),
         requiresCodrynTools: Array.isArray(reported?.requiresCodrynTools)
           ? reported.requiresCodrynTools
           : [],
@@ -223,7 +215,11 @@ export class PluginProcess extends EventEmitter {
   }
 
   /** Times out per timeoutMs; rejects all pending on process exit. */
-  async request(method: string, params?: unknown): Promise<unknown> {
+  async request(
+    method: string,
+    params?: unknown,
+    options?: { timeoutMs?: number },
+  ): Promise<unknown> {
     if (!this.child || this.state === 'closed' || this.state === 'error') {
       throw new Error(`Plugin ${this.id} is not ready (state: ${this.state})`);
     }
@@ -235,7 +231,7 @@ export class PluginProcess extends EventEmitter {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`Plugin ${this.id} request timeout: ${method}`));
-      }, this.timeoutMs);
+      }, options?.timeoutMs ?? this.timeoutMs);
 
       this.pending.set(id, { resolve, reject, timer });
       this.child?.stdin?.write(message);
@@ -243,36 +239,30 @@ export class PluginProcess extends EventEmitter {
   }
 
   /** Fire-and-forget; dropped unless state is ready. */
-  async notify(method: PluginHookMethod, params: PluginHookPayload): Promise<void> {
+  async notify(method: string, params: unknown): Promise<void> {
     if (!this.child || this.state !== 'ready') return;
 
     const message = JSON.stringify({ jsonrpc: '2.0', method, params }) + '\n';
     try {
-      this.child.stdin?.write(message);
+      this.child?.stdin?.write(message);
       this.lastActivityAt = Date.now();
     } catch (err) {
       this.logger.warn({ err, plugin: this.id, method }, 'plugin notify failed');
     }
   }
 
-  async callTool(
-    name: string,
-    args: Record<string, unknown>,
-    toolCallId?: string,
-  ): Promise<PluginToolsCallResult> {
-    const params: PluginToolsCallParams = { name, arguments: args, toolCallId };
-    const result = (await this.request(PluginMethods.TOOLS_CALL, params)) as PluginToolsCallResult;
-    return result;
-  }
+  /** Answers a request the plugin sent to Codryn. */
+  async respond(id: string | number, result: unknown): Promise<void> {
+    if (!this.child || this.state !== 'ready') return;
 
-  async listTools(): Promise<string[]> {
-    const result = (await this.request(PluginMethods.TOOLS_LIST, {})) as PluginToolsListResult;
-    return normalizeToolNames(result.tools);
+    const message = JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n';
+    this.child?.stdin?.write(message);
+    this.lastActivityAt = Date.now();
   }
 
   async ping(): Promise<boolean> {
     try {
-      const result = (await this.request(PluginMethods.PING, {})) as PluginPingResult;
+      const result = (await this.request(PluginSessionMethods.PING, {})) as PluginPingResult;
       return result.pong === true;
     } catch {
       return false;
@@ -286,7 +276,7 @@ export class PluginProcess extends EventEmitter {
 
     if (this.child && this.state === 'ready') {
       try {
-        await this.request(PluginMethods.SHUTDOWN, {});
+        await this.request(PluginSessionMethods.SHUTDOWN, {});
       } catch {
         // ignore shutdown errors
       }
@@ -341,9 +331,9 @@ export class PluginProcess extends EventEmitter {
   }
 
   private processLine(line: string): void {
-    let msg: { id?: string | number | null; method?: string; result?: unknown; error?: unknown };
+    let msg: JsonRpcMessage;
     try {
-      msg = JSON.parse(line);
+      msg = JSON.parse(line) as JsonRpcMessage;
     } catch {
       this.logger.warn({ plugin: this.id, line: line.slice(0, 200) }, 'plugin: invalid JSON');
       return;

@@ -1,5 +1,11 @@
 import type { PluginToolDecl } from './native.js';
-import { ALL_HOOK_NAMES, type PluginHookName } from './runtime/protocol.js';
+import { ALL_HOOK_NAMES, type PluginHookName } from './hooks/names.js';
+import {
+  hookContract,
+  resolveHookSubscription,
+  type HookMode,
+  type PluginHookDecl,
+} from './hooks/contracts.js';
 import type { PluginInternalManifest } from './runtime/types.js';
 
 /** A tool as the agent sees it. Sensitive flags come from the manifest. */
@@ -14,6 +20,8 @@ export interface PluginToolContract {
 export interface PluginContract {
   tools: PluginToolContract[];
   hooks: PluginHookName[];
+  /** The effective mode per hook, after Codryn corrected the declaration. */
+  hookModes: Partial<Record<PluginHookName, HookMode>>;
   notices: string[];
 }
 
@@ -38,7 +46,7 @@ function toToolContract(decl: PluginToolDecl): PluginToolContract {
  */
 export function resolvePluginContract(
   declared: PluginToolDecl[],
-  hooks: Partial<Record<PluginHookName, boolean>> | undefined,
+  hooks: Partial<Record<PluginHookName, boolean | PluginHookDecl>> | undefined,
   runtime: PluginInternalManifest | null,
 ): PluginContract {
   const notices: string[] = [];
@@ -66,7 +74,16 @@ export function resolvePluginContract(
     }
   }
 
-  const contractHooks = ALL_HOOK_NAMES.filter((name) => hooks?.[name] === true);
+  const hookModes: Partial<Record<PluginHookName, HookMode>> = {};
+  const contractHooks: PluginHookName[] = [];
+  for (const name of ALL_HOOK_NAMES) {
+    const subscription = resolveHookSubscription(hooks?.[name], hookContract(name));
+    if (!subscription.subscribed) continue;
+    contractHooks.push(name);
+    hookModes[name] = subscription.mode;
+    if (subscription.notice) notices.push(`hook "${name}": ${subscription.notice}`);
+  }
+
   if (runtime) {
     const subscribed = new Set(runtime.hooks);
     for (const name of contractHooks) {
@@ -83,7 +100,14 @@ export function resolvePluginContract(
         );
       }
     }
+    for (const [name, mode] of Object.entries(runtime.hookModes ?? {})) {
+      const effective = hookModes[name as PluginHookName];
+      if (!effective || effective === mode) continue;
+      notices.push(
+        `plugin implements hook "${name}" as "${mode}" but codryn-plugin.json grants "${effective}"; the manifest wins.`,
+      );
+    }
   }
 
-  return { tools, hooks: contractHooks, notices };
+  return { tools, hooks: contractHooks, hookModes, notices };
 }

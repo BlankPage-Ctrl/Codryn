@@ -1,11 +1,19 @@
-import type { PluginServerConfig } from '../shared/types.js';
+import type { PluginHookConflictPolicy, PluginServerConfig } from '../shared/types.js';
 import type { PluginCaps } from './types.js';
 import type { PluginToolDecl } from './native.js';
+
+export interface PluginHookLimits {
+  enabled: boolean;
+  timeoutMs: number;
+  maxWriters: number;
+  conflictPolicy: PluginHookConflictPolicy;
+}
 
 export interface PluginGlobalLimits {
   maxPlugins: number;
   maxSkillsPerPlugin: number;
   maxToolsPerPlugin: number;
+  hooks: PluginHookLimits;
 }
 
 export const DEFAULT_PLUGIN_CONFIG: PluginServerConfig = {
@@ -13,6 +21,12 @@ export const DEFAULT_PLUGIN_CONFIG: PluginServerConfig = {
   maxPlugins: 8,
   maxSkillsPerPlugin: 40,
   maxToolsPerPlugin: 16,
+  hooks: {
+    enabled: true,
+    timeoutMs: 2_000,
+    maxWriters: 4,
+    conflictPolicy: 'reject',
+  },
 };
 
 export function toPluginLimits(config: Partial<PluginServerConfig>): PluginGlobalLimits {
@@ -20,6 +34,12 @@ export function toPluginLimits(config: Partial<PluginServerConfig>): PluginGloba
     maxPlugins: config.maxPlugins ?? DEFAULT_PLUGIN_CONFIG.maxPlugins,
     maxSkillsPerPlugin: config.maxSkillsPerPlugin ?? DEFAULT_PLUGIN_CONFIG.maxSkillsPerPlugin,
     maxToolsPerPlugin: config.maxToolsPerPlugin ?? DEFAULT_PLUGIN_CONFIG.maxToolsPerPlugin,
+    hooks: {
+      enabled: config.hooks?.enabled ?? DEFAULT_PLUGIN_CONFIG.hooks.enabled,
+      timeoutMs: config.hooks?.timeoutMs ?? DEFAULT_PLUGIN_CONFIG.hooks.timeoutMs,
+      maxWriters: config.hooks?.maxWriters ?? DEFAULT_PLUGIN_CONFIG.hooks.maxWriters,
+      conflictPolicy: config.hooks?.conflictPolicy ?? DEFAULT_PLUGIN_CONFIG.hooks.conflictPolicy,
+    },
   };
 }
 

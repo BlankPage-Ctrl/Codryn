@@ -1,14 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { PluginProcess } from '../../apps/plugins/runtime/process.js';
 import { PluginHost } from '../../apps/plugins/host.js';
-import { createPluginTool } from '../../apps/plugins/tool-bridge.js';
 import { loadCodrynManifest } from '../../apps/plugins/native.js';
 import type { CodrynPluginManifest } from '../../apps/plugins/native.js';
-import type { PluginToolContract } from '../../apps/plugins/contract.js';
 
 function writeManifest(dir: string, manifest: unknown): void {
   mkdirSync(dir, { recursive: true });
@@ -120,7 +118,10 @@ rl.on('line', (line) => {
     const pong = await proc.ping();
     assert.equal(pong, true);
 
-    const result = await proc.callTool('echo', { text: 'hello' });
+    const result = (await proc.request('tools/call', {
+      name: 'echo',
+      arguments: { text: 'hello' },
+    })) as { ok: boolean; text: string };
     assert.equal(result.ok, true);
     assert.equal(result.text, 'Echo: hello');
 
@@ -239,130 +240,13 @@ rl.on('line', (line) => {
     const handle = await host.ensurePlugin('math');
     assert.equal(handle.state, 'ready');
     assert.equal(handle.internalManifest?.name, 'Math Plugin');
-
-    const tools = host.listTools();
-    assert.equal(tools.length, 1);
-    assert.equal(tools[0], 'add');
-
-    const result = await host.callTool('add', { a: 2, b: 3 });
-    assert.equal(result.ok, true);
-    assert.equal(result.text, 'Result: 5');
+    assert.equal(host.isPluginReady('math'), true);
+    assert.deepEqual(host.getRuntimeManifest('math')?.tools, ['add']);
 
     await host.closeAll();
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
-});
-
-test('PluginHost: hook gating by registry manifest', async () => {
-  const tmp = mkdtempSync(path.join(tmpdir(), 'plugin-hooks-'));
-  try {
-    const pluginScript = path.join(tmp, 'plugin.js');
-    const hookLog = path.join(tmp, 'hooks.log');
-    writeFileSync(
-      pluginScript,
-      `
-const fs = require('fs');
-const readline = require('readline');
-const rl = readline.createInterface({ input: process.stdin });
-const tools = {};
-const manifest = {
-  name: 'Hook Test',
-  version: '1.0.0',
-  description: 'Hook test plugin',
-  tools: [],
-  hooks: [],
-  requiresCodrynTools: []
-};
-rl.on('line', (line) => {
-  const msg = JSON.parse(line);
-  if (msg.method === 'initialize') {
-    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { manifest } }) + '\\n');
-  } else if (msg.method === 'tools/list') {
-    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { tools: [] } }) + '\\n');
-  } else if (msg.method === 'ping') {
-    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { pong: true } }) + '\\n');
-  }
-});
-rl.on('line', (line) => {
-  const msg = JSON.parse(line);
-  if (msg.method === 'hooks/beforeTool') {
-    fs.appendFileSync(${JSON.stringify(hookLog)}, 'beforeTool ' + msg.params.pluginId + '\\n');
-  }
-});
-`,
-    );
-
-    const host = new PluginHost({ timeoutMs: 5000, spawnTimeoutMs: 5000 });
-
-    const manifestWithHook = registryManifest({
-      id: 'hooked',
-      name: 'Hooked',
-      version: '1.0.0',
-      description: 'Hooked plugin',
-      runtime: { command: 'node', args: [pluginScript] },
-      hooks: { beforeTool: true, afterTool: false, beforeExecute: false, afterExecute: false },
-      tools: [],
-    });
-    host.register('hooked', manifestWithHook, tmp, 'ws1');
-
-    const manifestNoHook = registryManifest({
-      id: 'unhooked',
-      name: 'Unhooked',
-      version: '1.0.0',
-      description: 'Unhooked plugin',
-      runtime: { command: 'node', args: [pluginScript] },
-      hooks: { beforeTool: false, afterTool: false, beforeExecute: false, afterExecute: false },
-      tools: [],
-    });
-    host.register('unhooked', manifestNoHook, tmp, 'ws1');
-
-    await host.ensurePlugin('hooked');
-    await host.ensurePlugin('unhooked');
-
-    const subscribers = host.getHookSubscribers('beforeTool');
-    assert.deepEqual(subscribers, ['hooked']);
-
-    host.dispatchHook('beforeTool', {
-      pluginId: 'hooked',
-      tool: 'test',
-      args: {},
-      timestamp: Date.now(),
-    });
-
-    // The manifest decides which hooks are sent, not the plugin report.
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    assert.equal(readFileSync(hookLog, 'utf8').trim(), 'beforeTool hooked');
-
-    await host.closeAll();
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
-});
-
-test('createPluginTool: creates AgentTool with namespaced name', async () => {
-  const tool: PluginToolContract = {
-    name: 'scan',
-    description: 'Scan for issues',
-    inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
-    isSensitive: false,
-    destructive: false,
-  };
-
-  const mockHost = {
-    dispatchHook: () => {},
-    callTool: async () => ({ ok: true, text: 'Scan complete' }),
-  };
-
-  const agentTool = createPluginTool('demo', tool, {
-    host: mockHost as never,
-    hitl: { requestAndWait: async () => ({}) } as never,
-    workspaceId: 'ws1',
-    chatId: 'c1',
-  });
-
-  assert.equal(agentTool.name, 'demo__scan');
-  assert.equal(agentTool.description, 'Scan for issues');
 });
 
 test('manifest: hooks schema accepts valid hook declarations', async () => {

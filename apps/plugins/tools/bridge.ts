@@ -1,9 +1,10 @@
-import type { AgentTool, AgentToolExecuteOptions } from '../../src/agent/index.js';
-import type { IHitlService } from '../../src/human-in-the-loop/index.js';
-import type { PluginHost } from './host.js';
-import type { PluginToolContract } from './contract.js';
-import { resolvePluginPermissionViaHitl } from '../shared/plugin-permission.js';
-import { jsonSchemaToZod } from '../mcp/json-schema.js';
+import type { AgentTool, AgentToolExecuteOptions } from '../../../src/agent/index.js';
+import type { IHitlService } from '../../../src/human-in-the-loop/index.js';
+import type { PluginHost } from '../host.js';
+import type { PluginToolContract } from '../contract.js';
+import { resolvePluginPermissionViaHitl } from '../../shared/plugin-permission.js';
+import { jsonSchemaToZod } from '../../mcp/json-schema.js';
+import { callPluginTool } from './registry.js';
 import { z } from 'zod';
 
 export interface PluginToolBridgeDeps {
@@ -54,29 +55,13 @@ export function createPluginTool(
         }
       }
 
-      deps.host.dispatchHook('beforeTool', {
-        pluginId,
-        tool: tool.name,
-        args: argsObj,
-        toolCallId,
-        timestamp: Date.now(),
-      });
-
       let result;
       try {
-        result = await deps.host.callTool(namespacedName, argsObj, toolCallId);
+        result = await callPluginTool(deps.host, namespacedName, argsObj, toolCallId);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return `**Plugin tool error**: ${namespacedName} failed - ${message}`;
       }
-
-      deps.host.dispatchHook('afterTool', {
-        pluginId,
-        tool: tool.name,
-        result: result.text,
-        toolCallId,
-        timestamp: Date.now(),
-      });
 
       if (!result.ok) {
         const code = result.code ?? 'TOOL_ERROR';

@@ -41,11 +41,24 @@ export interface TelemetryServerConfig {
   endpoint: string;
 }
 
+export type PluginHookConflictPolicy = 'reject' | 'priority' | 'ask-user';
+
+export interface PluginHookServerConfig {
+  enabled: boolean;
+  /** Per plugin reply timeout for a hook that expects an answer. */
+  timeoutMs: number;
+  /** Cap on plugins that may write one hook per round. */
+  maxWriters: number;
+  /** How a path two plugins changed is settled. */
+  conflictPolicy: PluginHookConflictPolicy;
+}
+
 export interface PluginServerConfig {
   enabled: boolean;
   maxPlugins: number;
   maxSkillsPerPlugin: number;
   maxToolsPerPlugin: number;
+  hooks: PluginHookServerConfig;
 }
 
 export interface ServerConfig {

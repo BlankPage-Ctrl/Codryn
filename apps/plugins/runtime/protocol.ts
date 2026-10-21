@@ -1,49 +1,27 @@
-import type { PluginInternalManifest, PluginHookPayload } from './types.js';
+import type { PluginInternalManifest } from './types.js';
 
-export const PluginMethods = {
+/**
+ * The tunnel vocabulary: session control only. Everything a plugin can offer
+ * (tools, hooks) lives in its own consumer layer and brings its own methods.
+ */
+export const PluginSessionMethods = {
   /** Handshake; the plugin replies with its internal manifest. */
   INITIALIZE: 'initialize',
-  TOOLS_LIST: 'tools/list',
-  TOOLS_CALL: 'tools/call',
   PING: 'ping',
   SHUTDOWN: 'shutdown',
 } as const;
 
-export type PluginMethod = (typeof PluginMethods)[keyof typeof PluginMethods];
+export type PluginSessionMethod = (typeof PluginSessionMethods)[keyof typeof PluginSessionMethods];
 
-export const PluginHookMethods = {
-  BEFORE_TOOL: 'hooks/beforeTool',
-  AFTER_TOOL: 'hooks/afterTool',
-  BEFORE_EXECUTE: 'hooks/beforeExecute',
-  AFTER_EXECUTE: 'hooks/afterExecute',
-} as const;
-
-export type PluginHookMethod = (typeof PluginHookMethods)[keyof typeof PluginHookMethods];
-
-export const PluginHookNames = {
-  BEFORE_TOOL: 'beforeTool',
-  AFTER_TOOL: 'afterTool',
-  BEFORE_EXECUTE: 'beforeExecute',
-  AFTER_EXECUTE: 'afterExecute',
-} as const;
-
-export type PluginHookName = (typeof PluginHookNames)[keyof typeof PluginHookNames];
-
-export const ALL_HOOK_NAMES: PluginHookName[] = Object.values(PluginHookNames);
-
-export const HOOK_NAME_TO_METHOD: Record<PluginHookName, PluginHookMethod> = {
-  beforeTool: PluginHookMethods.BEFORE_TOOL,
-  afterTool: PluginHookMethods.AFTER_TOOL,
-  beforeExecute: PluginHookMethods.BEFORE_EXECUTE,
-  afterExecute: PluginHookMethods.AFTER_EXECUTE,
-};
-
-export const HOOK_METHOD_TO_NAME: Record<PluginHookMethod, PluginHookName> = {
-  [PluginHookMethods.BEFORE_TOOL]: 'beforeTool',
-  [PluginHookMethods.AFTER_TOOL]: 'afterTool',
-  [PluginHookMethods.BEFORE_EXECUTE]: 'beforeExecute',
-  [PluginHookMethods.AFTER_EXECUTE]: 'afterExecute',
-};
+/** One JSON-RPC 2.0 frame. */
+export interface JsonRpcMessage {
+  jsonrpc?: '2.0';
+  id?: string | number | null;
+  method?: string;
+  params?: unknown;
+  result?: unknown;
+  error?: { code: number; message: string };
+}
 
 export interface PluginInitializeParams {
   pluginId: string;
@@ -53,29 +31,6 @@ export interface PluginInitializeParams {
 
 export interface PluginInitializeResult {
   manifest: PluginInternalManifest;
-}
-
-export interface PluginToolsListParams {
-  // Intentionally empty - plugin returns all tools.
-  _placeholder?: never;
-}
-
-export interface PluginToolsListResult {
-  /** Names of the tools the plugin implements. */
-  tools: string[];
-}
-
-export interface PluginToolsCallParams {
-  name: string;
-  arguments: Record<string, unknown>;
-  toolCallId?: string;
-}
-
-export interface PluginToolsCallResult {
-  ok: boolean;
-  text: string;
-  code?: string;
-  message?: string;
 }
 
 export interface PluginPingParams {
@@ -94,12 +49,6 @@ export interface PluginShutdownParams {
 
 export interface PluginShutdownResult {
   shutdown: true;
-}
-
-export interface PluginHookNotification {
-  jsonrpc: '2.0';
-  method: PluginHookMethod;
-  params: PluginHookPayload;
 }
 
 export const PluginErrorCode = {

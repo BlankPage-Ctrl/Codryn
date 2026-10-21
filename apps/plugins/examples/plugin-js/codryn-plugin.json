@@ -20,8 +20,8 @@
     "args": ["./plugin.mjs"]
   },
   "hooks": {
-    "beforeTool": true,
-    "afterTool": true,
+    "beforeTool": { "mode": "observe" },
+    "afterTool": { "mode": "observe" },
     "beforeExecute": false,
     "afterExecute": false
   },

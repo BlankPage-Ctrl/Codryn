@@ -55,6 +55,12 @@ const configShape = {
     maxPlugins: t.number().default(8),
     maxSkillsPerPlugin: t.number().default(40),
     maxToolsPerPlugin: t.number().default(16),
+    hooks: {
+      enabled: t.boolean().default(true),
+      timeoutMs: t.number().default(2_000),
+      maxWriters: t.number().default(4),
+      conflictPolicy: t.enum(['reject', 'priority', 'ask-user']).default('reject'),
+    },
   },
   logging: {
     level: t.string().default(''),

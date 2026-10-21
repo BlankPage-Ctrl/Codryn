@@ -9,34 +9,22 @@ export interface PluginInternalManifest {
   description: string;
   /** Names of the tools the plugin implements. */
   tools: string[];
-  /** Hook names this plugin observes (e.g. beforeTool, afterTool). */
+  /** Names of the hooks the plugin listens to. */
   hooks: string[];
+  /** The mode the plugin implements per hook, when it reports one. */
+  hookModes?: Record<string, string>;
   /** Codryn tool capabilities this plugin needs (e.g. shell, file, network). */
   requiresCodrynTools: string[];
 }
 
-/** Observe-only hook payload. */
-export interface PluginHookPayload {
-  pluginId: string;
-  /** Present on tool-related hooks. */
-  tool?: string;
-  args?: unknown;
-  /** Present on after* hooks. */
-  result?: unknown;
-  toolCallId?: string;
-  /** Milliseconds since epoch. */
-  timestamp: number;
-}
-
-export interface PluginToolResult {
-  ok: boolean;
-  /** What the agent sees. */
-  text: string;
-  code?: string;
-  message?: string;
-}
-
 export type PluginProcessState = 'spawning' | 'initializing' | 'ready' | 'error' | 'closed';
+
+/** A request a plugin sends to Codryn. */
+export interface PluginRequestMessage {
+  id?: string | number;
+  method?: string;
+  params?: unknown;
+}
 
 export interface PluginProcessHandle {
   id: string;

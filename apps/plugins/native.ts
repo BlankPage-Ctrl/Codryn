@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import { PluginHookEntrySchema } from './hooks/contracts.js';
 
 export const CODRYN_MANIFEST_FILENAME = 'codryn-plugin.json';
 
@@ -42,10 +43,10 @@ const PluginRuntimeSchema = z
   .optional();
 
 const PluginHooksSchema = z.object({
-  beforeTool: z.boolean().default(false),
-  afterTool: z.boolean().default(false),
-  beforeExecute: z.boolean().default(false),
-  afterExecute: z.boolean().default(false),
+  beforeTool: PluginHookEntrySchema.default(false),
+  afterTool: PluginHookEntrySchema.default(false),
+  beforeExecute: PluginHookEntrySchema.default(false),
+  afterExecute: PluginHookEntrySchema.default(false),
 });
 
 export const CodrynPluginManifestSchema = z
