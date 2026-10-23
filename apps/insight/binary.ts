@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { accessSync, constants, readdirSync, statSync } from 'node:fs';
 import { homedir, platform as osPlatform } from 'node:os';
-import { basename, delimiter, dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   INSIGHT_BINARY_ENV,
@@ -141,6 +141,25 @@ export function prodInsightDir(home: string = safeHomedir()): string {
   return join(home, ...INSIGHT_PROD_DIR_PARTS);
 }
 
+const RELEASE_BUILD: boolean = process.env.CODRYN_RELEASE_BUILD === '1';
+
+/**
+ * Dev runs (source checkout, `npm run dev`) must prefer the repo-local
+ * srcinsight binary. Release bundles always prefer the installed one unless
+ * APP_ENV/APP_MODE explicitly selects a dev mode.
+ */
+export function isInsightDevRuntime(
+  env: NodeJS.ProcessEnv = process.env,
+  releaseBuild: boolean = RELEASE_BUILD,
+): boolean {
+  const mode = env.APP_ENV ?? env.APP_MODE;
+  if (mode !== undefined) {
+    return mode === 'development' || mode === 'dev' || mode === 'local';
+  }
+  if (releaseBuild) return false;
+  return env.NODE_ENV !== 'production';
+}
+
 /** Dev dirs to search, robust against cwd and compiled `dist/` layouts. */
 export function candidateDevDirs(opts: { cwd?: string; here?: string } = {}): string[] {
   const here = opts.here ?? dirname(fileURLToPath(import.meta.url));
@@ -156,10 +175,8 @@ export function candidateDevDirs(opts: { cwd?: string; here?: string } = {}): st
   for (const start of starts) {
     let dir = resolve(start);
     for (let i = 0; i < 12; i++) {
+      push(join(dir, INSIGHT_DEV_DIR_NAME));
       push(join(dir, 'packages', 'backend', INSIGHT_DEV_DIR_NAME));
-      if (basename(dir).toLowerCase() === 'backend') {
-        push(join(dir, INSIGHT_DEV_DIR_NAME));
-      }
       const parent = dirname(dir);
       if (parent === dir) break;
       dir = parent;
@@ -265,12 +282,15 @@ export interface FindInsightBinaryOpts {
   homeDir?: string;
   cwd?: string;
   here?: string;
+  /** Defaults to isInsightDevRuntime(); dev runs prefer the repo-local binary. */
+  devMode?: boolean;
 }
 
 /**
  * Locate a runnable srcinsight binary.
- * Order: explicit override > `$INSIGHT_BINARY` > prod (`~/.codryn/backend/bin/insight/`)
- * > dev (`packages/backend/srcinsight/`) > PATH.
+ * Order: explicit override > `$INSIGHT_BINARY` > dev or prod (dev runs prefer
+ * the repo checkout `<repo>/srcinsight/`, release builds prefer
+ * `~/.codryn/backend/bin/insight/`), then the other, then PATH.
  * Explicit paths are returned as-is when they exist, and throw InsightBinaryError when missing.
  */
 export function findInsightBinary(opts: FindInsightBinaryOpts = {}): InsightBinaryFound | null {
@@ -291,14 +311,26 @@ export function findInsightBinary(opts: FindInsightBinaryOpts = {}): InsightBina
     return { path: env, source: 'env' };
   }
   const home = opts.homeDir ?? safeHomedir();
-  if (home) {
-    const dir = prodInsightDir(home);
-    const hit = pickBinaryInDir(dir, plat);
-    if (hit) return { path: hit, source: 'prod', dir };
+  const prodDir = home ? prodInsightDir(home) : null;
+  const devDirs = candidateDevDirs({ cwd: opts.cwd, here: opts.here });
+  const devMode = opts.devMode ?? isInsightDevRuntime();
+  const ordered: { dir: string; source: 'prod' | 'dev' }[] = [];
+  const addProd = () => {
+    if (prodDir) ordered.push({ dir: prodDir, source: 'prod' });
+  };
+  const addDev = () => {
+    for (const dir of devDirs) ordered.push({ dir, source: 'dev' });
+  };
+  if (devMode) {
+    addDev();
+    addProd();
+  } else {
+    addProd();
+    addDev();
   }
-  for (const dir of candidateDevDirs({ cwd: opts.cwd, here: opts.here })) {
-    const hit = pickBinaryInDir(dir, plat);
-    if (hit) return { path: hit, source: 'dev', dir };
+  for (const cand of ordered) {
+    const hit = pickBinaryInDir(cand.dir, plat);
+    if (hit) return { path: hit, source: cand.source, dir: cand.dir };
   }
   const onPath = findOnPath(plat);
   if (onPath) return { path: onPath, source: 'path' };

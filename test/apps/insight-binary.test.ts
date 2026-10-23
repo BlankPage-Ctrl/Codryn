@@ -9,6 +9,7 @@ import {
   describeInsightCompat,
   ensureInsightBinary,
   findInsightBinary,
+  isInsightDevRuntime,
   isInsightVersionCompatible,
   parseInsightVersionOutput,
   parseSemver,
@@ -103,7 +104,7 @@ test('find: explicit override and env passthrough', () => {
   assert.throws(() => findInsightBinary({ override: join(bindir, 'missing') }), InsightBinaryError);
 });
 
-test('find: prod dir wins over dev dir', () => {
+test('find: prod dir wins over dev dir in production mode', () => {
   const { root } = makeRoot(['srcinsight-v0.0.10-linux-amd64']);
   const prod = join(root, 'home', '.codryn', 'backend', 'bin', 'insight');
   mkdirSync(prod, { recursive: true });
@@ -113,9 +114,50 @@ test('find: prod dir wins over dev dir', () => {
     homeDir: join(root, 'home'),
     cwd: root,
     here: root,
+    devMode: false,
   });
   assert.equal(hit?.source, 'prod');
   assert.equal(hit?.path, join(prod, 'srcinsight-v9.9.9-linux-amd64'));
+});
+
+test('find: dev dir wins over prod dir in dev mode', () => {
+  const { root, bindir } = makeRoot(['srcinsight-v0.0.10-linux-amd64']);
+  const prod = join(root, 'home', '.codryn', 'backend', 'bin', 'insight');
+  mkdirSync(prod, { recursive: true });
+  writeFileSync(join(prod, 'srcinsight-v9.9.9-linux-amd64'), 'fake');
+  const hit = findInsightBinary({
+    platform: 'linux',
+    homeDir: join(root, 'home'),
+    cwd: root,
+    here: root,
+    devMode: true,
+  });
+  assert.equal(hit?.source, 'dev');
+  assert.equal(hit?.path, join(bindir, 'srcinsight-v0.0.10-linux-amd64'));
+});
+
+test('find: repo-root srcinsight layout is a dev candidate', () => {
+  const root = mkdtempSync(join(tmpdir(), 'insight-root-'));
+  const bindir = join(root, 'srcinsight');
+  mkdirSync(bindir, { recursive: true });
+  const bin = join(bindir, 'srcinsight-v0.0.10-linux-amd64');
+  writeFileSync(bin, 'fake', { mode: 0o755 });
+  const hit = findInsightBinary({
+    platform: 'linux',
+    homeDir: join(root, 'nohome'),
+    cwd: join(root, 'apps', 'insight'),
+    here: join(root, 'apps', 'insight'),
+  });
+  assert.equal(hit?.source, 'dev');
+  assert.equal(hit?.path, bin);
+});
+
+test('find: dev runtime is decided from env and release marker', () => {
+  assert.equal(isInsightDevRuntime({ NODE_ENV: 'development' }), true);
+  assert.equal(isInsightDevRuntime({ NODE_ENV: 'production' }), false);
+  assert.equal(isInsightDevRuntime({ NODE_ENV: 'production', APP_ENV: 'dev' }), true);
+  assert.equal(isInsightDevRuntime({ NODE_ENV: 'development' }, true), false);
+  assert.equal(isInsightDevRuntime({ APP_MODE: 'local' }, true), true);
 });
 
 test('find: null when nothing exists', () => {

@@ -15,17 +15,18 @@ const ASK_INSTRUCTIONS = [
   'You are in ask sessions; modifying any existing code or files in this project is prohibited',
   'Pay attention to the user question, consult the code if necessary, and provide a clear answer—avoiding anything overly dramatic or excessive.',
   'Tips:',
+  '- To accelerate understanding of the codebase as requested by the User, use insight_trace.',
   '- If the user asks for code changes, explain what would change without applying edits, and suggest switching to Plan mode or Edit mode.',
   '- Do not re-read files or ranges you already read in this chat.',
   '- Only re-read if: the file changed, you edited it, or the earlier read was truncated or missed.',
-  '-Never call tools with empty or placeholder arguments; fill all required parameters first.',
+  '- Never call tools with empty or placeholder arguments; fill all required parameters first.',
   '-----END SYSTEM INSTRUCTION-----',
 ].join('\n');
 
 const PLAN_INSTRUCTIONS = [
   '\n\n-----BEGIN SYSTEM INSTRUCTION-----',
   'You are in plan mode; modifying any existing code or files in this project is prohibited.',
-  'Triage first: if it a question? answer without making any plan; if it change request? create the plan; if it to ambiguous? Answer the question the user asked.',
+  'Triage first: if it a question? answer without making any plan; if it change request? create the plan and read `plan_mode` skills; if it to ambiguous? Answer the question the user asked.',
   'If it is clear that the user wants a change, load the `plan-mode` skill to begin formulating the change plan.',
   '-----END SYSTEM INSTRUCTION-----',
 ].join('\n');

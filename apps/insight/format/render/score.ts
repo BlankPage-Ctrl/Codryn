@@ -66,7 +66,11 @@ export function isGeneratedPath(p: string): boolean {
     lower.endsWith('.pulsar.go') ||
     lower.endsWith('.g.go') ||
     lower.endsWith('.min.js') ||
-    lower.includes('__generated__')
+    lower.includes('__generated__') ||
+    lower.includes('wailsjs/') ||
+    lower.includes('/generated/') ||
+    lower.includes('.generated.') ||
+    lower.includes('/gen/')
   );
 }
 
@@ -134,22 +138,46 @@ export function rankFiles(rep: InsightTraceReport, query: string): RankResult {
     for (const h of hits) preciseFiles.add(h.filePath);
   }
 
+  // Distinct query tokens anchored in each file: the co-mention signal a lone
+  // bare word lacks. "plugin discover register" landing in one file is much
+  // stronger evidence than "folder" landing in an unrelated migration file.
+  const fileTokens = new Map<string, Set<string>>();
+  for (const [tok, hits] of Object.entries(rep.anchors)) {
+    for (const h of hits) {
+      let set = fileTokens.get(h.filePath);
+      if (!set) fileTokens.set(h.filePath, (set = new Set()));
+      set.add(tok);
+    }
+  }
+  const tokenCount = Object.keys(rep.anchors).length;
+
   for (const [tok, hits] of Object.entries(rep.anchors)) {
     const precise = isSymbolToken(tok);
     for (const h of hits) {
-      // Named tier (+50) for the top hit, entry tier (+10) for the rest -
-      // mirrors the server's seed tiers so explicitly named files survive.
-      const tierPts = h.rank === 0 ? 50 : 10;
-      let pts = tierPts * kindWeight(h.kind);
-      // FTS-only noise from a bare word earns nothing: demote unless a
-      // precise token or a trail step corroborates the file.
+      // Named tier (+50) only for a shape-precise token resolved exactly or by
+      // prefix; a bare English word that happens to match a definition earns
+      // the entry tier instead of outranking real symbol references.
       const mode = h.mode;
+      const confident = precise && (mode === 'exact' || mode === 'prefix');
+      const tierPts = confident ? (h.rank === 0 ? 50 : 10) : precise ? 20 : 10;
+      let pts = tierPts * kindWeight(h.kind);
+      const corroborated = (fileTokens.get(h.filePath)?.size ?? 0) >= 2;
       if (
+        !precise &&
+        tokenCount >= 2 &&
+        !corroborated &&
+        !preciseFiles.has(h.filePath) &&
+        !stepFiles.has(h.filePath)
+      ) {
+        // Uncorroborated bare word in a multi-token ask: below the floor.
+        pts *= 0.15;
+      } else if (
         !precise &&
         (mode === 'fts' || mode === 'substring') &&
         !preciseFiles.has(h.filePath) &&
         !stepFiles.has(h.filePath)
       ) {
+        // FTS-only noise from a bare word earns nothing.
         pts *= 0.2;
       }
       add(h.filePath, pts, h.kind);

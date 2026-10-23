@@ -123,9 +123,14 @@ export function washRows(
       folded.push(n ? `${n.kind} ${qualifiedName(n)} (${n.filePath}:${n.lineRange.start})` : id);
     }
   } else {
-    for (const hits of Object.values(rep.anchors)) {
-      const first = hits[0];
-      if (first && rows.length < maxRows) push(first.id);
+    // No ripple walk: show every resolved anchor, best rank first, so a token
+    // with several plausible definitions is not reduced to its first hit.
+    const ordered = Object.values(rep.anchors)
+      .flat()
+      .sort((a, b) => a.rank - b.rank);
+    for (const hit of ordered) {
+      if (rows.length >= maxRows) break;
+      push(hit.id);
     }
   }
   return { rows, folded, overflow };

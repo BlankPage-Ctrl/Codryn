@@ -136,12 +136,14 @@ export async function formatInsightTrace(
 
   const head = [`# Trace — ${escTick(query)}`, ''];
   const flow = renderFlow(rep);
-  const wash = washRows(rep);
+  // Ripples are the server's real caller walk; without them every row would
+  // read "direct only" and the impact/awakening sections would vanish.
+  const wash = washRows(rep, rep.ripples);
   const washMd = renderWash(wash);
-  const impactMd = renderImpact(rep);
+  const impactMd = renderImpact(rep, rep.ripples);
   const awakeMd = renderAwakening(rep, wash);
   const links = renderLinks(rep);
-  const hot = impactFiles(rep).files.length;
+  const hot = impactFiles(rep, rep.ripples).files.length;
   // Symbol bodies spend first, from a capped reserve; the file envelope
   // is whatever remains after bodies AND meta.
   const symbols = await symbolBlocks(reader, rep, wash.rows, tier.maxOutputChars);
