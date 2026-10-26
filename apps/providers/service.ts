@@ -5,11 +5,12 @@ import type {
   Model,
   ModelCreateInput,
   ModelUpdateInput,
+  ProviderModelList,
   ProviderTypeInfo,
   ProviderWithModels,
 } from './types.js';
 import type { ProviderStore } from './store.js';
-import { listProviderTypes } from './registry.js';
+import { getProviderPlugin, listProviderTypes } from './registry.js';
 import { ModelNotFoundError, ProviderNotFoundError } from './errors.js';
 
 function maskApiKey(input: ProviderWithModels): ProviderWithModels {
@@ -25,6 +26,14 @@ export class ProviderService {
 
   listProviderTypes(): ProviderTypeInfo[] {
     return listProviderTypes();
+  }
+
+  getModelListEndpoint(type: string): ProviderModelList | null {
+    return getProviderPlugin(type)?.modelList ?? null;
+  }
+
+  async findProviderByType(type: string): Promise<LlmProvider | null> {
+    return this.store.findMostRecentByType(type);
   }
 
   async findAll(): Promise<ProviderWithModels[]> {

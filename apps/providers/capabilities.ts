@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { CapabilityProvider, ModelCapability } from '../../src/agent/types/index.js';
+import { buildModelListURL, fetchModelList, type RemoteModelEntry } from './model-list.js';
 
 /**
  * Foreign /models index shapes - owned by the adapter layer (apps/), parsed
@@ -16,10 +17,6 @@ const modelCapabilitySchema = z.object({
 const openAICompatibleModelSchema = z.object({
   id: z.string(),
   capabilities: modelCapabilitySchema.optional(),
-});
-
-const modelCapabilityIndexSchema = z.object({
-  data: z.array(z.object({ id: z.string() })).optional(),
 });
 
 const openRouterReasoningSchema = z.object({
@@ -71,19 +68,13 @@ async function fetchModelCapabilities(
 ): Promise<Map<string, ModelCapability> | null> {
   if (!provider.baseURL) return null;
 
-  const url = `${normalizeBaseURL(provider.baseURL)}/models`;
   try {
-    const res = await fetch(url, {
-      headers: provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {},
-      signal: AbortSignal.timeout(10_000),
+    const entries: RemoteModelEntry[] = await fetchModelList({
+      url: buildModelListURL(provider.baseURL, '/models'),
+      apiKey: provider.apiKey,
     });
-    if (!res.ok) return null;
-
-    const parsed = modelCapabilityIndexSchema.safeParse(await res.json());
-    if (!parsed.success) return null;
-
     const models = new Map<string, ModelCapability>();
-    for (const entry of parsed.data.data ?? []) {
+    for (const entry of entries) {
       const compatible = openAICompatibleModelToCapability(entry);
       if (compatible) {
         models.set(entry.id, compatible);

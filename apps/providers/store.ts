@@ -152,6 +152,17 @@ export class ProviderStore {
     return this.readProviderRow(id);
   }
 
+  async findMostRecentByType(type: string): Promise<LlmProvider | null> {
+    const matches = (await this.findAll()).filter((p) => p.type === type);
+    if (matches.length === 0) return null;
+    return matches.reduce((newest, p) => {
+      if (p.updatedAt.getTime() !== newest.updatedAt.getTime()) {
+        return p.updatedAt > newest.updatedAt ? p : newest;
+      }
+      return p.id < newest.id ? p : newest;
+    });
+  }
+
   async create(data: LlmProviderCreateInput): Promise<LlmProvider> {
     const parsed = LlmProviderCreateSchema.safeParse(data);
     if (!parsed.success) {

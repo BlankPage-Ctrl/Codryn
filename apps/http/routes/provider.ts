@@ -8,6 +8,7 @@ import {
   updateProvider,
   deleteProvider,
   listModels,
+  listRemoteModels,
   createModel,
   updateModel,
   deleteModel,
@@ -20,6 +21,8 @@ import {
   validateUpdateProvider,
   validateCreateModel,
   validateUpdateModel,
+  validateRemoteModelsParams,
+  validateRemoteModelsBody,
 } from '../../validators/provider.js';
 
 export function registerProviderRoutes(app: FastifyInstance, ctx: Container) {
@@ -72,5 +75,11 @@ export function registerProviderRoutes(app: FastifyInstance, ctx: Container) {
     const { id } = validateModelParams(req.params);
     await deleteModel(ctx, { id });
     return reply.code(204).send();
+  });
+
+  app.post('/providers/:providerType/remote-models', async (req) => {
+    const { providerType } = validateRemoteModelsParams(req.params);
+    const body = validateRemoteModelsBody(req.body ?? {});
+    return listRemoteModels(ctx, { providerType, ...body });
   });
 }

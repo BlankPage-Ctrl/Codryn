@@ -27,6 +27,7 @@ export function listProviderTypes(): ProviderTypeInfo[] {
     label: p.label,
     isOfficial: p.isOfficial,
     requiresBaseURL: p.requiresBaseURL,
+    modelList: { ...p.modelList },
   }));
 }
 

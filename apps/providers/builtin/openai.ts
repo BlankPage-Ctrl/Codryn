@@ -9,6 +9,11 @@ export const openaiPlugin: ProviderPlugin = {
   label: 'OpenAI',
   isOfficial: true,
   requiresBaseURL: false,
+  modelList: {
+    path: '/models',
+    requiresApiKey: true,
+    defaultBaseURL: 'https://api.openai.com/v1',
+  },
   configSchema: z
     .object({
       apiKey: z.string().optional(),

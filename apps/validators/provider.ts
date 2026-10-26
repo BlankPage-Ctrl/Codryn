@@ -23,6 +23,25 @@ export const ModelParamsSchema = z.object({
 
 export const CreateModelBodySchema = ModelCreateSchema.omit({ providerId: true });
 
+export const RemoteModelsParamsSchema = z.object({
+  providerType: z.string().trim().min(1).max(60),
+});
+
+export const RemoteModelsBodySchema = z
+  .object({
+    apiKey: z.string().trim().min(1).optional(),
+    baseURL: z.string().trim().min(1).optional(),
+  })
+  .strict();
+
+export const RemoteModelsRequestSchema = z
+  .object({
+    providerType: z.string().trim().min(1).max(60),
+    apiKey: z.string().trim().min(1).optional(),
+    baseURL: z.string().trim().min(1).optional(),
+  })
+  .strict();
+
 export function validateProviderId(params: unknown) {
   return ProviderIdParamsSchema.parse(params);
 }
@@ -49,4 +68,12 @@ export function validateCreateModel(body: unknown) {
 
 export function validateUpdateModel(body: unknown) {
   return ModelUpdateSchema.parse(body);
+}
+
+export function validateRemoteModelsParams(params: unknown) {
+  return RemoteModelsParamsSchema.parse(params);
+}
+
+export function validateRemoteModelsBody(body: unknown) {
+  return RemoteModelsBodySchema.parse(body);
 }

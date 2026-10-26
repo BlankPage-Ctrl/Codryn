@@ -39,6 +39,7 @@ export { updateProvider } from './update.provider.js';
 export { deleteProvider } from './delete.provider.js';
 
 export { listModels } from './list.model.js';
+export { listRemoteModels } from './list.remote-model.js';
 export { createModel } from './create.model.js';
 export { updateModel } from './update.model.js';
 export { deleteModel } from './delete.model.js';

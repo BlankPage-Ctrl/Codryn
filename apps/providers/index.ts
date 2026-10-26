@@ -7,6 +7,7 @@ export type {
   ModelCreateInput,
   ModelUpdateInput,
   ProviderPlugin,
+  ProviderModelList,
   ProviderTypeInfo,
   ReasoningBuildContext,
   ProviderModelFactory,
@@ -31,6 +32,13 @@ export { ProviderService } from './service.js';
 export { buildReasoningOptions } from './reasoning/options.js';
 export { resolveClientFactory } from './clients.js';
 export { getModelCapability } from './capabilities.js';
+export {
+  buildModelListURL,
+  fetchModelList,
+  modelListRequiresApiKey,
+  ModelListError,
+  type RemoteModelEntry,
+} from './model-list.js';
 export { toProviderConfig } from './translate.js';
 export {
   ProviderDomainError,

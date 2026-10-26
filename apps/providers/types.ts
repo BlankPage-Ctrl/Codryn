@@ -117,6 +117,15 @@ export interface ProviderLike {
 
 export type { ReasoningBuildArgs } from './reasoning/builders/shared.js';
 
+/** Describes where a provider type serves its model catalog, and what it takes to read it. */
+export interface ProviderModelList {
+  /** Path appended to the resolved API root, e.g. '/models'. */
+  path: string;
+  requiresApiKey: boolean;
+  /** API root used when the instance stores none, so a type alone can be queried. */
+  defaultBaseURL?: string;
+}
+
 export interface ProviderPlugin {
   /** Unique type id referenced by LlmProvider.type. */
   readonly id: string;
@@ -124,6 +133,8 @@ export interface ProviderPlugin {
   readonly isOfficial: boolean;
   /** Whether instances of this type must set baseURL (shown prominently in UIs). */
   readonly requiresBaseURL: boolean;
+  /** How to fetch the list of models this type serves. */
+  readonly modelList: ProviderModelList;
   /** Validates instance config (apiKey/baseURL/extra) on create/update. */
   readonly configSchema: z.ZodTypeAny;
   /** Builds an AI SDK model factory from a stored instance config. */
@@ -137,4 +148,6 @@ export interface ProviderTypeInfo {
   label: string;
   isOfficial: boolean;
   requiresBaseURL: boolean;
+  /** Optional on the wire so clients predating it keep parsing /providers/types. */
+  modelList?: ProviderModelList;
 }

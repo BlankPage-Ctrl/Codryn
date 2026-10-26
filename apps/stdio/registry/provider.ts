@@ -7,6 +7,7 @@ import {
   updateProvider,
   deleteProvider,
   listModels,
+  listRemoteModels,
   createModel,
   updateModel,
   deleteModel,
@@ -18,6 +19,7 @@ import {
   ProviderIdParamsSchema,
   ModelsParamsSchema,
   CreateModelBodySchema,
+  RemoteModelsRequestSchema,
 } from '../../validators/provider.js';
 import { act, idParam, noParams, patchParams, IdSchema, type StdioMethod } from './types.js';
 
@@ -59,6 +61,11 @@ export const providerMethods: Record<string, StdioMethod> = {
     kind: 'plain',
     validate: (p) => ModelsParamsSchema.parse(p),
     run: act(listModels),
+  },
+  'list.remote-model': {
+    kind: 'plain',
+    validate: (p) => RemoteModelsRequestSchema.parse(p),
+    run: act(listRemoteModels),
   },
   'create.model': {
     kind: 'plain',

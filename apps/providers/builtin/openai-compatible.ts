@@ -9,6 +9,10 @@ export const openaiCompatiblePlugin: ProviderPlugin = {
   label: 'OpenAI Compatible',
   isOfficial: true,
   requiresBaseURL: true,
+  modelList: {
+    path: '/models',
+    requiresApiKey: false,
+  },
   configSchema: z
     .object({
       apiKey: z.string().optional(),

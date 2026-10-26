@@ -9,6 +9,11 @@ export const openrouterPlugin: ProviderPlugin = {
   label: 'OpenRouter',
   isOfficial: true,
   requiresBaseURL: false,
+  modelList: {
+    path: '/models',
+    requiresApiKey: false,
+    defaultBaseURL: 'https://openrouter.ai/api/v1',
+  },
   configSchema: z
     .object({
       apiKey: z.string().optional(),
