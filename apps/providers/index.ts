@@ -33,6 +33,18 @@ export { buildReasoningOptions } from './reasoning/options.js';
 export { resolveClientFactory } from './clients.js';
 export { getModelCapability } from './capabilities.js';
 export {
+  toRemoteModel,
+  mergeRemoteModel,
+  modelIdCandidates,
+  type RemoteModel,
+  type RemoteModelCapabilities,
+} from './remote-model.js';
+export {
+  createModelsDevCatalog,
+  type ModelsDevCatalog,
+  type ModelsDevModel,
+} from './models-dev.js';
+export {
   buildModelListURL,
   fetchModelList,
   modelListRequiresApiKey,

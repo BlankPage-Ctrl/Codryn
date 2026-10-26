@@ -13,6 +13,7 @@ export const openaiPlugin: ProviderPlugin = {
     path: '/models',
     requiresApiKey: true,
     defaultBaseURL: 'https://api.openai.com/v1',
+    modelsDevProvider: 'openai',
   },
   configSchema: z
     .object({

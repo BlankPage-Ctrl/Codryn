@@ -44,6 +44,8 @@ import {
   buildReasoningOptions,
   resolveClientFactory,
   getModelCapability,
+  createModelsDevCatalog,
+  type ModelsDevCatalog,
 } from './providers/index.js';
 import { FileRepository } from '../src/fm/index.js';
 import { ColdFileHistoryStorage } from '../src/fm/index.js';
@@ -77,6 +79,7 @@ export interface Container {
   messagesService: MessagesService;
   attachmentsService: AttachmentsService;
   providerService: ProviderService;
+  modelsDevCatalog: ModelsDevCatalog;
   notesService: NotesService;
   categoriesService: CategoriesService;
   providerStore: ProviderStore;
@@ -181,6 +184,7 @@ export async function bootstrap(
   installProviderPlugins();
   const providerStore = new ProviderStore(settingsService);
   const providerService = new ProviderService(providerStore);
+  const modelsDevCatalog = createModelsDevCatalog({ logger });
   const notesService = new NotesService(notesRepo, categoriesRepo);
   const categoriesService = new CategoriesService(categoriesRepo);
 
@@ -225,6 +229,7 @@ export async function bootstrap(
     messagesService,
     attachmentsService,
     providerService,
+    modelsDevCatalog,
     notesService,
     categoriesService,
     providerStore,

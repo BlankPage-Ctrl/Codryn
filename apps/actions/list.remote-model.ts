@@ -1,11 +1,21 @@
 import type { Container } from '../bootstrap.js';
-import { buildModelListURL, fetchModelList, ModelListError } from '../providers/index.js';
+import {
+  buildModelListURL,
+  fetchModelList,
+  ModelListError,
+  ProviderNotFoundError,
+  type RemoteModelEntry,
+} from '../providers/index.js';
+import {
+  mergeRemoteModel,
+  modelIdCandidates,
+  toRemoteModel,
+  type RemoteModel,
+} from '../providers/index.js';
+import type { ModelsDevModel } from '../providers/index.js';
 import { AppError, ApiErrorCode, AuthError, ValidationError } from '../shared/errors.js';
 
-export interface RemoteModel {
-  modelId: string;
-  displayName: string | null;
-}
+export type { RemoteModel, RemoteModelCapabilities } from '../providers/remote-model.js';
 
 export interface RemoteModelListResult {
   providerType: string;
@@ -16,18 +26,38 @@ export interface RemoteModelListResult {
   models: RemoteModel[];
 }
 
-/** Optional catalog label; providers disagree on the field name, so try in order. */
-function pickDisplayName(entry: Record<string, unknown>): string | null {
-  for (const field of ['name', 'friendly_name', 'display_name']) {
-    const value = entry[field];
-    if (typeof value === 'string' && value.trim()) return value.trim();
+function mergeWithModelsDev(model: RemoteModel, fallback: ModelsDevModel): RemoteModel {
+  return mergeRemoteModel(model, {
+    modelId: model.modelId,
+    displayName: fallback.displayName,
+    contextLength: fallback.contextLength,
+    maxInputTokens: fallback.maxInputTokens,
+    maxOutputTokens: fallback.maxOutputTokens,
+    capabilities: fallback.capabilities,
+  });
+}
+
+function collectModels(entries: RemoteModelEntry[]): RemoteModel[] {
+  const byId = new Map<string, RemoteModel>();
+  for (const entry of entries) {
+    const mapped = toRemoteModel(entry);
+    const modelId = mapped.modelId.trim();
+    if (!modelId) continue;
+    const model = modelId === mapped.modelId ? mapped : { ...mapped, modelId };
+    const existing = byId.get(modelId);
+    byId.set(modelId, existing ? mergeRemoteModel(existing, model) : model);
   }
-  return null;
+  return [...byId.values()];
 }
 
 export async function listRemoteModels(
   ctx: Container,
-  params: { providerType: string; apiKey?: string; baseURL?: string },
+  params: {
+    providerType: string;
+    providerId?: string;
+    apiKey?: string;
+    baseURL?: string;
+  },
 ): Promise<RemoteModelListResult> {
   const endpoint = ctx.providerService.getModelListEndpoint(params.providerType);
   if (!endpoint) {
@@ -41,17 +71,26 @@ export async function listRemoteModels(
 
   let apiKey: string | undefined = paramKey;
   let baseURL: string | undefined = paramBase;
-  let keySource: RemoteModelListResult['keySource'] = 'none';
+  let keySource: RemoteModelListResult['keySource'] = paramKey ? 'param' : 'none';
 
-  if (paramKey) {
+  if (params.providerId) {
+    const stored = await ctx.providerService.findProviderById(params.providerId);
+    if (!stored) throw new ProviderNotFoundError(params.providerId);
+    if (stored.type !== params.providerType) {
+      throw new ValidationError(
+        `Provider ${params.providerId} has type ${stored.type}, not ${params.providerType}`,
+      );
+    }
+    apiKey = paramKey ?? stored.apiKey ?? undefined;
+    baseURL = paramBase || stored.baseURL || undefined;
+    if (!paramKey && apiKey) keySource = 'stored';
+  } else if (!paramKey) {
     // An explicit key is a live fetch: skip the stored-provider lookup entirely.
-    keySource = 'param';
-  } else {
     const stored = await ctx.providerService.findProviderByType(params.providerType);
     if (stored) {
       apiKey = stored.apiKey ?? undefined;
       baseURL = paramBase || stored.baseURL || undefined;
-      keySource = apiKey ? 'stored' : 'none';
+      if (apiKey) keySource = 'stored';
     }
   }
   if (!baseURL) baseURL = endpoint.defaultBaseURL;
@@ -72,7 +111,10 @@ export async function listRemoteModels(
     );
   }
 
-  let entries: Record<string, unknown>[];
+  // Start enrichment before the catalog request so a cold models.dev cache does not add latency.
+  const modelsDevPromise = ctx.modelsDevCatalog.getModels(params.providerType);
+
+  let entries: RemoteModelEntry[];
   try {
     entries = await fetchModelList({ url, apiKey });
   } catch (err) {
@@ -88,13 +130,23 @@ export async function listRemoteModels(
     );
   }
 
+  const models = collectModels(entries);
+  const fallback = await modelsDevPromise;
+  if (fallback.size > 0) {
+    for (const model of models) {
+      for (const candidate of modelIdCandidates(model.modelId)) {
+        const match = fallback.get(candidate);
+        if (!match) continue;
+        Object.assign(model, mergeWithModelsDev(model, match));
+        break;
+      }
+    }
+  }
+
   return {
     providerType: params.providerType,
     modelUrl: url,
     keySource,
-    models: entries.map((entry) => ({
-      modelId: String(entry.id),
-      displayName: pickDisplayName(entry),
-    })),
+    models,
   };
 }

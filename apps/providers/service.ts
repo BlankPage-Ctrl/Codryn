@@ -36,6 +36,10 @@ export class ProviderService {
     return this.store.findMostRecentByType(type);
   }
 
+  async findProviderById(id: string): Promise<LlmProvider | null> {
+    return this.store.findById(id);
+  }
+
   async findAll(): Promise<ProviderWithModels[]> {
     const providers = await this.store.findAllWithModels();
     return providers.map(maskApiKey);

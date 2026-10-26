@@ -32,13 +32,13 @@ const openRouterModelSchema = z.object({
   reasoning: openRouterReasoningSchema.optional(),
 });
 
-function openAICompatibleModelToCapability(entry: unknown): ModelCapability | null {
+export function openAICompatibleModelToCapability(entry: unknown): ModelCapability | null {
   const parsed = openAICompatibleModelSchema.safeParse(entry);
   if (!parsed.success) return null;
   return parsed.data.capabilities ?? null;
 }
 
-function openRouterModelToCapability(entry: unknown): ModelCapability | null {
+export function openRouterModelToCapability(entry: unknown): ModelCapability | null {
   const parsed = openRouterModelSchema.safeParse(entry);
   if (!parsed.success) return null;
   const reasoning = parsed.data.reasoning;

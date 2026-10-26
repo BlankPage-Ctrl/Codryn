@@ -68,7 +68,7 @@ export const LlmProviderUpdateSchema = z
 
 export type LlmProviderUpdateInput = z.infer<typeof LlmProviderUpdateSchema>;
 
-const TokenLimitSchema = z.number().int().positive().max(1_000_000);
+const TokenLimitSchema = z.number().int().positive().max(10_000_000);
 
 export const ModelCreateSchema = z
   .object({
@@ -124,6 +124,8 @@ export interface ProviderModelList {
   requiresApiKey: boolean;
   /** API root used when the instance stores none, so a type alone can be queried. */
   defaultBaseURL?: string;
+  /** models.dev provider key used to enrich catalogs that omit token limits. */
+  modelsDevProvider?: string;
 }
 
 export interface ProviderPlugin {

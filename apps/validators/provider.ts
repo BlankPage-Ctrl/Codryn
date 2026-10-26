@@ -29,6 +29,7 @@ export const RemoteModelsParamsSchema = z.object({
 
 export const RemoteModelsBodySchema = z
   .object({
+    providerId: z.string().trim().min(1).optional(),
     apiKey: z.string().trim().min(1).optional(),
     baseURL: z.string().trim().min(1).optional(),
   })
@@ -37,6 +38,7 @@ export const RemoteModelsBodySchema = z
 export const RemoteModelsRequestSchema = z
   .object({
     providerType: z.string().trim().min(1).max(60),
+    providerId: z.string().trim().min(1).optional(),
     apiKey: z.string().trim().min(1).optional(),
     baseURL: z.string().trim().min(1).optional(),
   })
