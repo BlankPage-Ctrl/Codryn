@@ -27,8 +27,11 @@ import {
   createShellTool,
   createSkillListTool,
   createSkillTool,
+  createWebFetchTool,
+  createWebSearchTool,
   type OnRichResult,
 } from './tools/index.js';
+import type { WebRuntime } from './web/index.js';
 
 export interface MessageInsightDeps {
   workspaceId: string;
@@ -40,6 +43,8 @@ export interface MessageToolsetDeps {
   fm: FmServices;
   shellConsumer: ShellConsumer;
   shellEnabled: boolean;
+  webRuntime: WebRuntime;
+  webEnabled: boolean;
   skillSources: SkillSources;
   hitlService: IHitlService;
   insightDeps: MessageInsightDeps;
@@ -117,6 +122,12 @@ export function buildMessageRunToolset(deps: MessageToolsetDeps): AgentTool[] {
     // ...createInsightSearchTool({ ...deps.insightDeps, readFile: fm.readFileService }),
     ...createInsightGraphTool(deps.insightDeps),
     ...createInsightTraceTool({ ...deps.insightDeps, readFile: fm.readFileService }),
+    ...(deps.webEnabled
+      ? [
+          ...createWebSearchTool(deps.webRuntime, { projectPath }),
+          ...createWebFetchTool(deps.webRuntime, { projectPath }),
+        ]
+      : []),
     // Edit mode only: source edits. Ask/Plan stay read-only.
     // History context links every mutation to this run's assistant message
     // so revert-from-message can restore the affected files.

@@ -11,6 +11,7 @@ import {
 } from '../../../src/fm/index.js';
 import type { HitlRequest } from '../../../src/human-in-the-loop/index.js';
 import type { ShellRunData } from '../../../src/shell/index.js';
+import type { WebDocument, WebSearchHit } from '../web/index.js';
 
 export const DEFAULT_LIST_LIMIT = 200;
 export const MAX_LIST_LIMIT = 500;
@@ -583,4 +584,162 @@ export function formatHitlResult(request: HitlRequest): string {
   }
 
   return [header, meta, payloadPreview, body].filter(Boolean).join('\n\n');
+}
+
+export interface FormatWebSearchOptions {
+  query: string;
+  providerId: string;
+  engineId?: string;
+  hits: WebSearchHit[];
+  skipped: string[];
+  attempts: Array<{ providerId: string; engineId?: string; code: string }>;
+  durationMs: number;
+  cached: boolean;
+}
+
+function oneLine(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+export function formatWebSearch(opts: FormatWebSearchOptions): string {
+  const source = opts.engineId ? `${opts.providerId}/${opts.engineId}` : opts.providerId;
+  const head =
+    `# Search results for "${inlineCode(opts.query)}" — ` +
+    `${plural(opts.hits.length, 'result', 'results')} (provider: ${source})`;
+
+  const meta = [
+    `- Duration: ${formatDuration(opts.durationMs)}`,
+    ...(opts.cached ? ['- Cache: hit'] : []),
+  ].join('\n');
+
+  if (opts.hits.length === 0) {
+    return [
+      head,
+      meta,
+      '_(no results)_',
+      '**Suggestion**: Rephrase with fewer, more specific words, or use a site: qualifier (e.g. "lateral join site:postgresql.org").',
+    ].join('\n\n');
+  }
+
+  const items = opts.hits.map((hit, index) => {
+    const link = `${index + 1}. [${oneLine(hit.title)}](${hit.url})`;
+    const detail = hit.snippet ? `\n   ${oneLine(hit.snippet)}` : '';
+    return `${link}${detail}`;
+  });
+
+  const notes: string[] = [];
+  if (opts.skipped.includes('recency')) {
+    notes.push('The recency filter was ignored: this provider cannot scope results by time.');
+  }
+  if (opts.skipped.includes('paging')) {
+    notes.push('The offset was ignored: this provider cannot paginate results.');
+  }
+  if (opts.skipped.includes('safeSearch')) {
+    notes.push('The safeSearch setting was ignored: this provider always applies its own default.');
+  }
+  if (opts.skipped.includes('maxResults')) {
+    notes.push('maxResults was lowered to what this provider allows.');
+  }
+  const fallbacks = opts.attempts.filter((a) => a.code !== 'UNAVAILABLE');
+  if (fallbacks.length > 0) {
+    const list = fallbacks
+      .map((a) => `${a.engineId ? `${a.providerId}/${a.engineId}` : a.providerId}: \`${a.code}\``)
+      .join(', ');
+    notes.push(`Tried and skipped before this source: ${list}.`);
+  }
+
+  return [head, meta, items.join('\n'), ...(notes.length > 0 ? [notes.join('\n')] : [])].join(
+    '\n\n',
+  );
+}
+
+export function formatWebFetch(doc: WebDocument): string {
+  const label = doc.title === '' ? new URL(doc.finalUrl).host : oneLine(doc.title);
+  const head = `# Result from "${inlineCode(label)}"`;
+  const meta = [
+    `- URL: \`${inlineCode(doc.finalUrl)}\``,
+    ...(doc.url.trim() !== doc.finalUrl ? [`- Requested: \`${inlineCode(doc.url.trim())}\``] : []),
+    `- Status: ${doc.status}`,
+    `- Content type: \`${inlineCode(doc.contentType || 'unknown')}\``,
+    `- Charset: \`${inlineCode(doc.charset)}\``,
+    `- Downloaded: ${humanizeSize(doc.byteLength)}`,
+  ].join('\n');
+
+  if (doc.text === '') {
+    return `${head}\n\n${meta}\n\n_(no readable text on this page)_`;
+  }
+  return `${head}\n\n${meta}\n\n${formatStream('Content', doc.text)}`;
+}
+
+const WEB_SEARCH_SUGGESTIONS: Record<string, string> = {
+  BLOCKED:
+    'The search endpoint is serving a bot check. Retry with a different query, or answer from the workspace instead of guessing.',
+  RATE_LIMITED:
+    'The search endpoint is rate limiting. Wait before retrying; do not loop the same query.',
+  TIMEOUT: 'The search timed out. Shorten the query and retry once.',
+  OFFLINE:
+    'No internet connection is available from this machine. Tell the user instead of inventing an answer.',
+  NETWORK:
+    'The search request could not reach the endpoint. Tell the user web search is unavailable.',
+  ENGINES_EXHAUSTED:
+    'Every built-in search engine failed for this query. Rephrase it, or tell the user search is currently unavailable.',
+  ALL_PROVIDERS_FAILED:
+    'Every registered web search provider failed. Check the web provider configuration; do not answer from memory.',
+  NO_PROVIDER_AVAILABLE:
+    'No web search provider is registered. This is a configuration problem, not a query problem.',
+  PARSE_FAILED:
+    'The results page could not be parsed. Retry once, then report that search is unavailable.',
+  DISABLED: 'Web search is disabled in the server configuration.',
+};
+
+const WEB_FETCH_SUGGESTIONS: Record<string, string> = {
+  INVALID_URL: 'Pass an absolute http(s) URL, ideally straight from a web_search result.',
+  SSRF_BLOCKED:
+    'Localhost and private or reserved addresses are refused by this tool. Use a public URL.',
+  BLOCKED_BY_SITE:
+    'The site rejects direct fetches. Use the snippet from web_search, fetch a different source covering the same fact, or tell the user.',
+  RATE_LIMITED: 'The site is rate limiting. Back off instead of retrying immediately.',
+  UNSUPPORTED_CONTENT_TYPE:
+    'This tool only reads html/json/xml/text responses. Pick an HTML page, or handle the binary with run_shell.',
+  TOO_LARGE:
+    'The response exceeds the download cap. Fetch a narrower page (a single doc section) rather than retrying.',
+  TOO_MANY_REDIRECTS: 'The URL loops on redirects. Use a canonical link from web_search instead.',
+  HTTP_STATUS: 'The page returned an error status. Choose another URL from web_search results.',
+  TIMEOUT: 'The page load timed out. Try a lighter page or a direct documentation URL.',
+  OFFLINE: 'No internet connection is available from this machine.',
+  NETWORK: 'The request could not be completed. Retry once, then report the failure.',
+  DISABLED: 'Web fetch is disabled in the server configuration.',
+};
+
+function webErrorText(
+  code: string,
+  message: string,
+  where: string | undefined,
+  suggestions: Record<string, string>,
+  fallback: string,
+): string {
+  const head = `**Error**: \`${code}\` — ${message}`;
+  const location = where ? `\n**Target**: \`${inlineCode(where)}\`` : '';
+  const suggestion = suggestions[code] ?? fallback;
+  return `${head}${location}\n**Suggestion**: ${suggestion}`;
+}
+
+export function formatWebSearchError(code: string, message: string, query?: string): string {
+  return webErrorText(
+    code,
+    message,
+    query,
+    WEB_SEARCH_SUGGESTIONS,
+    'Retry with a different query, or answer from the workspace.',
+  );
+}
+
+export function formatWebFetchError(code: string, message: string, url?: string): string {
+  return webErrorText(
+    code,
+    message,
+    url,
+    WEB_FETCH_SUGGESTIONS,
+    'Pick another URL from web_search results.',
+  );
 }

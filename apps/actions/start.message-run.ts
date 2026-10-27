@@ -286,6 +286,8 @@ export async function startMessageRun(
                 fm,
                 shellConsumer,
                 shellEnabled: ctx.shellEnabled,
+                webRuntime: ctx.webRuntime,
+                webEnabled: ctx.webEnabled,
                 skillSources,
                 hitlService: ctx.hitlService,
                 insightDeps,

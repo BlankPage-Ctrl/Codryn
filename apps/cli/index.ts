@@ -37,6 +37,15 @@ const configShape = {
   files: {
     sensitivePatterns: t.array(t.string()).default([...SENSITIVE_FILE_PATTERNS]),
   },
+  web: {
+    enabled: t.boolean().default(true),
+    timeoutSearchMs: t.number().default(10_000),
+    timeoutFetchMs: t.number().default(20_000),
+    maxDownloadBytes: t.number().default(2_000_000),
+    userAgent: t.string().default(''),
+    acceptLanguage: t.string().default('en-US,en;q=0.8'),
+    cacheTtlMs: t.number().default(600_000),
+  },
   mcp: {
     enabled: t.boolean().default(true),
     toolsEnabled: t.boolean().default(true),

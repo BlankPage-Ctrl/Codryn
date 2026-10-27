@@ -8,6 +8,8 @@ const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   'insight_search',
   'insight_graph',
   'insight_trace',
+  'web_search',
+  'web_fetch',
   'skill',
   'skill_list',
   'read_plan',
@@ -57,9 +59,7 @@ export function filterChildTools(all: AgentTool[], def: SubAgentDef): AgentTool[
   const allowed =
     def.tools && def.tools.length > 0
       ? new Set(
-          [...names].filter(
-            (name) => !NEVER_CHILD_TOOLS.has(name) && matchesAny(def.tools!, name),
-          ),
+          [...names].filter((name) => !NEVER_CHILD_TOOLS.has(name) && matchesAny(def.tools!, name)),
         )
       : modeDefaults(def.mode, names);
   if (def.disallowedTools) {

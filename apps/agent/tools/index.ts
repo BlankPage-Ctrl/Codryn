@@ -34,6 +34,20 @@ export { createInsightGraphTool, insightGraphSchema } from './graph.js';
 export type { InsightGraphToolDeps } from './graph.js';
 export { createInsightTraceTool, insightTraceSchema } from './trace.js';
 export type { InsightTraceToolDeps } from './trace.js';
+export {
+  createWebSearchTool,
+  webSearchSchema,
+  DEFAULT_WEB_SEARCH_MAX_RESULTS,
+  MAX_WEB_SEARCH_RESULTS,
+} from './web-search.js';
+export type { WebSearchToolDeps } from './web-search.js';
+export {
+  createWebFetchTool,
+  webFetchSchema,
+  DEFAULT_WEB_FETCH_MAX_CHARS,
+  MAX_WEB_FETCH_MAX_CHARS,
+} from './web-fetch.js';
+export type { WebFetchToolDeps } from './web-fetch.js';
 export type {
   RichToolResult,
   OnRichResult,

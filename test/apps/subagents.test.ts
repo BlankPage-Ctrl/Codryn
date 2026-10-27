@@ -24,6 +24,8 @@ const BASE_TOOLS = [
   'list_files',
   'read_file',
   'grep',
+  'web_search',
+  'web_fetch',
   'edit_file',
   'create_file',
   'run_shell',
@@ -83,6 +85,8 @@ test('filterChildTools keeps read-only tools in ask mode and drops privileged on
   const names = filterChildTools(BASE_TOOLS, def).map((t) => t.name);
   assert.ok(names.includes('read_file'));
   assert.ok(names.includes('grep'));
+  assert.ok(names.includes('web_search'));
+  assert.ok(names.includes('web_fetch'));
   assert.ok(!names.includes('edit_file'));
   assert.ok(!names.includes('run_shell'));
   assert.ok(names.includes('request_human'));

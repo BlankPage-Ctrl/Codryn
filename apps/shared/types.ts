@@ -17,6 +17,17 @@ export interface FileServerConfig {
   sensitivePatterns: string[];
 }
 
+export interface WebServerConfig {
+  enabled: boolean;
+  timeoutSearchMs: number;
+  timeoutFetchMs: number;
+  maxDownloadBytes: number;
+  /** Empty string falls back to the built-in desktop user agent. */
+  userAgent: string;
+  acceptLanguage: string;
+  cacheTtlMs: number;
+}
+
 export interface McpServerConfig {
   enabled: boolean;
   toolsEnabled: boolean;
@@ -54,6 +65,7 @@ export interface ServerConfig {
   auth: { defaultClientSecretKey: string };
   shell: ShellServerConfig;
   files: FileServerConfig;
+  web: WebServerConfig;
   mcp: McpServerConfig;
   plugins: PluginServerConfig;
   logging: LoggingServerConfig;

@@ -61,8 +61,19 @@ import { SettingsService } from '../src/settings/index.js';
 import { WorkspacesService } from '../src/workspaces/index.js';
 import { MessagesService } from '../src/messages/index.js';
 import { NotesService, CategoriesService } from '../src/notes/index.js';
-import type { FileServerConfig, Logger, PluginServerConfig } from './shared/types.js';
+import type {
+  FileServerConfig,
+  Logger,
+  PluginServerConfig,
+  WebServerConfig,
+} from './shared/types.js';
 import { fallbackLogger } from './shared/logging/fallback.js';
+import {
+  createWebRuntime,
+  DEFAULT_WEB_CONFIG,
+  installWebProviders,
+  type WebRuntime,
+} from './agent/web/index.js';
 import { DEFAULT_MCP_CONFIG, McpManager, type McpManagerConfig } from './mcp/manager.js';
 import {
   DEFAULT_PLUGIN_CONFIG,
@@ -91,6 +102,8 @@ export interface Container {
   shellService: ShellService;
   shellEnabled: boolean;
   shellExecBus: ShellExecEventBus;
+  webRuntime: WebRuntime;
+  webEnabled: boolean;
   hitlService: IHitlService;
   runService: RunsService;
   mcpManager: McpManager;
@@ -108,6 +121,7 @@ export interface BootstrapConfig {
   defaultClientSecretKey: string;
   shell?: BootstrapShellConfig;
   files?: Partial<FileServerConfig>;
+  web?: Partial<WebServerConfig>;
   mcp?: Partial<McpManagerConfig>;
   plugins?: Partial<PluginServerConfig>;
 }
@@ -182,6 +196,7 @@ export async function bootstrap(
   const messagesService = new MessagesService(messagesRepo);
   const attachmentsService = new AttachmentsService(attachmentsRepo, attachmentBytesStorage);
   installProviderPlugins();
+  installWebProviders();
   const providerStore = new ProviderStore(settingsService);
   const providerService = new ProviderService(providerStore);
   const modelsDevCatalog = createModelsDevCatalog({ logger });
@@ -207,6 +222,13 @@ export async function bootstrap(
     shellConfig,
     shellExecBus,
   );
+
+  // # Web.
+  const webConfig = { ...DEFAULT_WEB_CONFIG, ...config.web };
+  const webRuntime = createWebRuntime(webConfig, {
+    logger,
+    settings: { getValue: (key) => settingsService.getValue(key) },
+  });
 
   // # MCP (lazy per-workspace connections; nothing connects here).
   const mcpManager = new McpManager({ ...DEFAULT_MCP_CONFIG, ...config.mcp }, logger, undefined, {
@@ -245,6 +267,8 @@ export async function bootstrap(
     shellService,
     shellEnabled: shellConfig.enabled,
     shellExecBus,
+    webRuntime,
+    webEnabled: webConfig.enabled,
     hitlService,
     runService,
     mcpManager,
